@@ -1,0 +1,86 @@
+package com.example.asr
+
+import android.app.Application
+import com.example.asr.data.local.AppDatabase
+import com.example.asr.data.repository.ChildRepository
+import com.example.asr.data.repository.RecordingRepository
+import com.example.asr.data.repository.TutorRepository
+import com.example.asr.data.settings.SettingsStore
+import com.example.asr.data.sync.BackupController
+import com.example.asr.data.sync.SyncManager
+import com.example.asr.data.sync.isOnWifi
+import com.example.asr.worker.DailyReviewWorker
+import com.example.asr.worker.NotificationHelper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import java.io.File
+
+/** 手写服务定位容器（不引入 Hilt，保持简单） */
+class AppContainer(context: Application) {
+    val settingsStore = SettingsStore(context)
+    private val db = AppDatabase.get(context)
+
+    val childRepository = ChildRepository(db.childDao())
+    val recordingRepository = RecordingRepository(db.recordingDao(), db.transcriptDao(), settingsStore)
+    val tutorRepository = TutorRepository(
+        weakPointDao = db.weakPointDao(),
+        reviewTaskDao = db.reviewTaskDao(),
+        transcriptDao = db.transcriptDao(),
+        recordingDao = db.recordingDao(),
+        childDao = db.childDao(),
+        masteryHistoryDao = db.masteryHistoryDao(),
+        recordingPhotoDao = db.recordingPhotoDao(),
+        settingsStore = settingsStore,
+    )
+
+    /** 坚果云 WebDAV 备份/恢复 */
+    val syncManager = SyncManager(context, db, settingsStore)
+
+    /** 共享备份执行器（启动自动备份 / 提醒弹窗 / 云备份页共用） */
+    val backupController = BackupController(syncManager, settingsStore)
+
+    /** 超过 3 天未备份时置 true，AppRoot 弹提醒 */
+    val backupReminder = MutableStateFlow(false)
+
+    /** 其他 App（如小米录音机）分享过来的音频文件，等待用户在记录页确认归属 */
+    val pendingImport = MutableStateFlow<File?>(null)
+}
+
+class AsrApplication : Application() {
+
+    lateinit var container: AppContainer
+        private set
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    override fun onCreate() {
+        super.onCreate()
+        container = AppContainer(this)
+        NotificationHelper.ensureChannel(this)
+        applicationScope.launch {
+            val settings = container.settingsStore.settings.first()
+            DailyReviewWorker.schedule(this@AsrApplication, settings.reminderHour, settings.reminderMinute)
+        }
+        applicationScope.launch { autoBackupOnStart() }
+    }
+
+    /** 启动时：已配置 WebDAV 且 WiFi 下自动静默备份；超过 3 天未备份则弹提醒 */
+    private suspend fun autoBackupOnStart() {
+        val s = container.settingsStore.settings.first()
+        if (s.webdavUser.isBlank() || s.webdavPassword.isBlank()) return
+        val overdue = System.currentTimeMillis() - s.lastBackupAt > REMIND_AFTER_MS
+        if (s.autoBackupOnWifi && isOnWifi(this)) {
+            container.backupController.backupNow(silent = true)
+        } else if (overdue) {
+            container.backupReminder.value = true
+        }
+    }
+
+    private companion object {
+        const val REMIND_AFTER_MS = 3L * 24 * 3600 * 1000 // 3 天
+    }
+}
