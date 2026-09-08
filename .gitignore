@@ -26,3 +26,4 @@ miniprogram/miniprogram_npm/
 
 # 预览二维码等临时产物
 preview-qr*.png
+miniprogram/.tmp/
