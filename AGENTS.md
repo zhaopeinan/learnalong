@@ -7,6 +7,7 @@
 - `miniprogram/src/`：源码（TypeScript + SCSS），页面 wxml/json/png 直接改产物目录 `miniprogram/miniprogram/`
 - `miniprogram/miniprogram/`：构建产物 + 手写 wxml/wxss 资源
 - `miniprogram/screenshot/`：典型页面截图（自动化脚本在 `miniprogram/.tmp/e2e/`，不入库）
+- `app/`：Android 移植版「伴学记」（Compose 单 Activity，包名 com.example.asr，架构见 `IMPLEMENTATION_NOTES.md`）
 
 ## 构建与验证
 
@@ -14,7 +15,13 @@
 cd miniprogram && npm run build && npm run typecheck
 ```
 
-任何 `src/` 改动后必须跑这条验证通过再提交。
+任何 `miniprogram/src/` 改动后必须跑这条验证通过再提交。
+
+Android 侧（`app/` 改动后必跑）：
+
+```bash
+./gradlew assembleDebug && ./gradlew testDebugUnitTest
+```
 
 ## 协作约定（每次提交必守）
 
