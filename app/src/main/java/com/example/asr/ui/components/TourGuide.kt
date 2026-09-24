@@ -283,7 +283,8 @@ fun TourOverlay(
                 .padding(start = 24.dp, end = 24.dp, bottom = 96.dp)
                 .fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface,
+            // 小程序提示卡固定白底（不随深色主题切换）
+            color = Color.White,
             tonalElevation = 2.dp,
             shadowElevation = 12.dp,
         ) {
