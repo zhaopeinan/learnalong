@@ -2,9 +2,11 @@ package com.example.asr
 
 import android.app.Application
 import com.example.asr.data.local.AppDatabase
+import com.example.asr.data.remote.NetworkClient
 import com.example.asr.data.repository.ChildRepository
 import com.example.asr.data.repository.RecordingRepository
 import com.example.asr.data.repository.TutorRepository
+import com.example.asr.data.settings.AppSettings
 import com.example.asr.data.settings.SettingsStore
 import com.example.asr.data.sync.BackupController
 import com.example.asr.data.sync.SyncManager
@@ -51,6 +53,9 @@ class AppContainer(context: Application) {
 
     /** 底部动作面板拍照/相册产出的错题照片（已复制进私有目录），等待用户在记录页确认归属 */
     val pendingPhotoImport = MutableStateFlow<List<File>?>(null)
+
+    /** MiniMax 语音合成 / 家长声音复刻 */
+    val miniMaxApi = NetworkClient.minimaxApi(AppSettings.MINIMAX_BASE_URL)
 }
 
 class AsrApplication : Application() {

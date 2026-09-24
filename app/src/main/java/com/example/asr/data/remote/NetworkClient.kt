@@ -32,4 +32,13 @@ object NetworkClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(SiliconFlowApi::class.java)
+
+    /** MiniMax 语音服务（base 固定 https://api.minimaxi.com/v1/） */
+    fun minimaxApi(baseUrl: String): MiniMaxApi =
+        Retrofit.Builder()
+            .baseUrl(baseUrl)
+            .client(okHttp)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(MiniMaxApi::class.java)
 }

@@ -4,20 +4,29 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.asr.data.local.dao.ChatDao
 import com.example.asr.data.local.dao.ChildDao
+import com.example.asr.data.local.dao.KidStarDao
 import com.example.asr.data.local.dao.MasteryHistoryDao
 import com.example.asr.data.local.dao.RecordingDao
 import com.example.asr.data.local.dao.RecordingPhotoDao
 import com.example.asr.data.local.dao.ReviewTaskDao
 import com.example.asr.data.local.dao.TranscriptDao
 import com.example.asr.data.local.dao.WeakPointDao
+import com.example.asr.data.local.dao.WorkRecordingDao
+import com.example.asr.data.local.dao.WorkTodoDao
+import com.example.asr.data.local.entity.ChatMessageEntity
+import com.example.asr.data.local.entity.ChatSessionEntity
 import com.example.asr.data.local.entity.ChildEntity
+import com.example.asr.data.local.entity.KidStarEntity
 import com.example.asr.data.local.entity.MasteryHistoryEntity
 import com.example.asr.data.local.entity.RecordingEntity
 import com.example.asr.data.local.entity.RecordingPhotoEntity
 import com.example.asr.data.local.entity.ReviewTaskEntity
 import com.example.asr.data.local.entity.TranscriptSegmentEntity
 import com.example.asr.data.local.entity.WeakPointEntity
+import com.example.asr.data.local.entity.WorkRecordingEntity
+import com.example.asr.data.local.entity.WorkTodoEntity
 
 @Database(
     entities = [
@@ -28,8 +37,13 @@ import com.example.asr.data.local.entity.WeakPointEntity
         ReviewTaskEntity::class,
         MasteryHistoryEntity::class,
         RecordingPhotoEntity::class,
+        ChatSessionEntity::class,
+        ChatMessageEntity::class,
+        KidStarEntity::class,
+        WorkRecordingEntity::class,
+        WorkTodoEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,6 +54,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reviewTaskDao(): ReviewTaskDao
     abstract fun masteryHistoryDao(): MasteryHistoryDao
     abstract fun recordingPhotoDao(): RecordingPhotoDao
+    abstract fun chatDao(): ChatDao
+    abstract fun kidStarDao(): KidStarDao
+    abstract fun workRecordingDao(): WorkRecordingDao
+    abstract fun workTodoDao(): WorkTodoDao
 
     companion object {
         @Volatile
@@ -111,13 +129,109 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v6 → v7：children 加 voiceId、weak_points 加 exerciseCache；新增辅导会话/星星/工作端录音四张表 */
+        private val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE children ADD COLUMN voiceId TEXT")
+                db.execSQL("ALTER TABLE weak_points ADD COLUMN exerciseCache TEXT")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS chat_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        childId INTEGER NOT NULL,
+                        mode TEXT NOT NULL,
+                        refId INTEGER,
+                        title TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        FOREIGN KEY(childId) REFERENCES children(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_chat_sessions_childId " +
+                        "ON chat_sessions(childId)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS chat_messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        sessionId INTEGER NOT NULL,
+                        role TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        imagePaths TEXT,
+                        audioUrl TEXT,
+                        createdAt INTEGER NOT NULL,
+                        FOREIGN KEY(sessionId) REFERENCES chat_sessions(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_chat_messages_sessionId " +
+                        "ON chat_messages(sessionId)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS kid_stars (
+                        childId INTEGER PRIMARY KEY NOT NULL,
+                        stars INTEGER NOT NULL,
+                        FOREIGN KEY(childId) REFERENCES children(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS work_recordings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        title TEXT NOT NULL,
+                        scenario TEXT NOT NULL,
+                        filePath TEXT NOT NULL,
+                        segments TEXT,
+                        durationSec INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        transcriptText TEXT,
+                        summary TEXT,
+                        transcribedAt INTEGER,
+                        analyzedAt INTEGER
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS work_todos (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        workRecordingId INTEGER NOT NULL,
+                        text TEXT NOT NULL,
+                        assignee TEXT,
+                        deadline TEXT,
+                        done INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        FOREIGN KEY(workRecordingId) REFERENCES work_recordings(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_work_todos_workRecordingId " +
+                        "ON work_todos(workRecordingId)"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "asr_tutor.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { INSTANCE = it }
+                ).addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
+                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                ).build().also { INSTANCE = it }
             }
     }
 }

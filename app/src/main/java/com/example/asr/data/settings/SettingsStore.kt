@@ -1,14 +1,27 @@
 package com.example.asr.data.settings
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
+
+/** MiniMax 复刻的家长音色（与小程序 ClonedVoice 一致） */
+@Serializable
+data class ClonedVoice(
+    val voiceId: String,
+    val name: String,
+)
 
 data class AppSettings(
     val apiKey: String = "",
@@ -25,6 +38,20 @@ data class AppSettings(
     val autoBackupOnWifi: Boolean = true, // 启动时 WiFi 下自动备份
     val subjects: List<String> = DEFAULT_SUBJECTS, // 可选科目（可在设置页编辑）
     val themeMode: String = THEME_SYSTEM, // 外观：跟随本机 / 白天 / 黑夜
+    val agreementAgreedV1: Boolean = false, // 已同意用户协议与隐私政策（协议闸门）
+    val appMode: String = MODE_PARENT,    // 家长端 / 孩子端 / 工作端
+    val kidChildId: Long? = null,         // 孩子端绑定的孩子 id
+    val parentPin: String = "",           // 家长密码（4-6 位数字 PIN），空串 = 未设置
+    val minimaxApiKey: String = "",       // MiniMax API Key（语音合成 + 家长声音复刻）
+    val minimaxModel: String = DEFAULT_MINIMAX_MODEL,
+    val clonedVoices: List<ClonedVoice> = emptyList(), // 复刻的家长音色列表
+    /** 默认播报音色：空串 = DEFAULT_MINIMAX_VOICE 预置音色 */
+    val preferredVoiceId: String = "",
+    val chatVoiceEnabled: Boolean = true, // AI 回复语音播报开关
+    /** 分析完成后录音文件处理方式 */
+    val audioCleanupMode: String = CLEANUP_ASK,
+    val tourDoneV1: Boolean = false,      // 新手引导已完成
+    val demoSeededV1: Boolean = false,    // 演示数据已写入
 ) {
     companion object {
         const val DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1/"
@@ -38,6 +65,17 @@ data class AppSettings(
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
         const val THEME_DARK = "dark"
+        const val MINIMAX_BASE_URL = "https://api.minimaxi.com/v1/"
+        const val DEFAULT_MINIMAX_MODEL = "speech-2.8-hd"
+        /** MiniMax 预置音色默认值「温柔学姐」：亲切、吐字清晰，适合辅导场景 */
+        const val DEFAULT_MINIMAX_VOICE = "Chinese (Mandarin)_Gentle_Senior"
+        const val MODE_PARENT = "parent"
+        const val MODE_KID = "kid"
+        const val MODE_WORK = "work"
+        const val CLEANUP_ASK = "ask"
+        const val CLEANUP_KEEP = "keep"
+        const val CLEANUP_DELETE = "delete"
+        const val CLEANUP_BACKUP_DELETE = "backup_delete"
     }
 }
 
@@ -59,12 +97,37 @@ class SettingsStore(private val context: Context) {
         val WEBDAV_USER = stringPreferencesKey("webdav_user")
         // WebDAV 应用密码与 API Key 一样明文存 DataStore（App 私有目录，未加密）
         val WEBDAV_PASSWORD = stringPreferencesKey("webdav_password")
-        val LAST_BACKUP_AT = androidx.datastore.preferences.core.longPreferencesKey("last_backup_at")
-        val AUTO_BACKUP_WIFI = androidx.datastore.preferences.core.booleanPreferencesKey("auto_backup_wifi")
+        val LAST_BACKUP_AT = longPreferencesKey("last_backup_at")
+        val AUTO_BACKUP_WIFI = booleanPreferencesKey("auto_backup_wifi")
         // 科目列表用 \n 分隔存储（简单可靠，科目名不允许含换行）
         val SUBJECTS = stringPreferencesKey("subjects")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val AGREEMENT_AGREED_V1 = booleanPreferencesKey("agreement_agreed_v1")
+        val APP_MODE = stringPreferencesKey("app_mode")
+        val KID_CHILD_ID = longPreferencesKey("kid_child_id")
+        val PARENT_PIN = stringPreferencesKey("parent_pin")
+        val MINIMAX_API_KEY = stringPreferencesKey("minimax_api_key")
+        val MINIMAX_MODEL = stringPreferencesKey("minimax_model")
+        // 复刻音色列表存 JSON（[ {voiceId, name} ]）
+        val CLONED_VOICES = stringPreferencesKey("cloned_voices")
+        val PREFERRED_VOICE_ID = stringPreferencesKey("preferred_voice_id")
+        val CHAT_VOICE_ENABLED = booleanPreferencesKey("chat_voice_enabled")
+        val AUDIO_CLEANUP_MODE = stringPreferencesKey("audio_cleanup_mode")
+        val TOUR_DONE_V1 = booleanPreferencesKey("tour_done_v1")
+        val DEMO_SEEDED_V1 = booleanPreferencesKey("demo_seeded_v1")
     }
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    private fun parseClonedVoices(raw: String?): List<ClonedVoice> =
+        raw?.let {
+            try {
+                json.decodeFromString<List<ClonedVoice>>(it)
+                    .filter { v -> v.voiceId.isNotEmpty() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+        } ?: emptyList()
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -86,6 +149,25 @@ class SettingsStore(private val context: Context) {
                 ?.takeIf { it.isNotEmpty() }
                 ?: AppSettings.DEFAULT_SUBJECTS,
             themeMode = prefs[Keys.THEME_MODE] ?: AppSettings.THEME_SYSTEM,
+            agreementAgreedV1 = prefs[Keys.AGREEMENT_AGREED_V1] ?: false,
+            appMode = prefs[Keys.APP_MODE]?.takeIf {
+                it in listOf(AppSettings.MODE_PARENT, AppSettings.MODE_KID, AppSettings.MODE_WORK)
+            } ?: AppSettings.MODE_PARENT,
+            kidChildId = prefs[Keys.KID_CHILD_ID]?.takeIf { it > 0 },
+            parentPin = (prefs[Keys.PARENT_PIN] ?: "").replace(WHITESPACE, ""),
+            minimaxApiKey = (prefs[Keys.MINIMAX_API_KEY] ?: "").replace(WHITESPACE, ""),
+            minimaxModel = prefs[Keys.MINIMAX_MODEL] ?: AppSettings.DEFAULT_MINIMAX_MODEL,
+            clonedVoices = parseClonedVoices(prefs[Keys.CLONED_VOICES]),
+            preferredVoiceId = (prefs[Keys.PREFERRED_VOICE_ID] ?: "").replace(WHITESPACE, ""),
+            chatVoiceEnabled = prefs[Keys.CHAT_VOICE_ENABLED] ?: true,
+            audioCleanupMode = prefs[Keys.AUDIO_CLEANUP_MODE]?.takeIf {
+                it in listOf(
+                    AppSettings.CLEANUP_ASK, AppSettings.CLEANUP_KEEP,
+                    AppSettings.CLEANUP_DELETE, AppSettings.CLEANUP_BACKUP_DELETE,
+                )
+            } ?: AppSettings.CLEANUP_ASK,
+            tourDoneV1 = prefs[Keys.TOUR_DONE_V1] ?: false,
+            demoSeededV1 = prefs[Keys.DEMO_SEEDED_V1] ?: false,
         )
     }
 
@@ -144,5 +226,53 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setThemeMode(value: String) = context.dataStore.edit {
         it[Keys.THEME_MODE] = value
+    }
+
+    suspend fun setAgreementAgreedV1(value: Boolean) = context.dataStore.edit {
+        it[Keys.AGREEMENT_AGREED_V1] = value
+    }
+
+    suspend fun setAppMode(value: String) = context.dataStore.edit {
+        it[Keys.APP_MODE] = value
+    }
+
+    suspend fun setKidChildId(value: Long?) = context.dataStore.edit {
+        if (value == null) it.remove(Keys.KID_CHILD_ID) else it[Keys.KID_CHILD_ID] = value
+    }
+
+    suspend fun setParentPin(value: String) = context.dataStore.edit {
+        it[Keys.PARENT_PIN] = value.trim()
+    }
+
+    suspend fun setMinimaxApiKey(value: String) = context.dataStore.edit {
+        it[Keys.MINIMAX_API_KEY] = value.trim()
+    }
+
+    suspend fun setMinimaxModel(value: String) = context.dataStore.edit {
+        it[Keys.MINIMAX_MODEL] = value.trim().ifEmpty { AppSettings.DEFAULT_MINIMAX_MODEL }
+    }
+
+    suspend fun setClonedVoices(value: List<ClonedVoice>) = context.dataStore.edit {
+        it[Keys.CLONED_VOICES] = json.encodeToString(value)
+    }
+
+    suspend fun setPreferredVoiceId(value: String) = context.dataStore.edit {
+        it[Keys.PREFERRED_VOICE_ID] = value.trim()
+    }
+
+    suspend fun setChatVoiceEnabled(value: Boolean) = context.dataStore.edit {
+        it[Keys.CHAT_VOICE_ENABLED] = value
+    }
+
+    suspend fun setAudioCleanupMode(value: String) = context.dataStore.edit {
+        it[Keys.AUDIO_CLEANUP_MODE] = value
+    }
+
+    suspend fun setTourDoneV1(value: Boolean) = context.dataStore.edit {
+        it[Keys.TOUR_DONE_V1] = value
+    }
+
+    suspend fun setDemoSeededV1(value: Boolean) = context.dataStore.edit {
+        it[Keys.DEMO_SEEDED_V1] = value
     }
 }

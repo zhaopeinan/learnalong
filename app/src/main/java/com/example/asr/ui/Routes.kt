@@ -1,6 +1,8 @@
 package com.example.asr.ui
 
 object Routes {
+    const val SPLASH = "splash"
+    const val AGREEMENT = "agreement"
     const val TODAY = "today"
     const val RECORDINGS = "recordings"
     const val WEAK_POINTS = "weak_points"

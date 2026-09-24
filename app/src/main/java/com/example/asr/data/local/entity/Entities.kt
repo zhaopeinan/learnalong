@@ -22,12 +22,44 @@ object SpeakerRole {
     const val CHILD = "CHILD"      // 孩子
 }
 
+/** 辅导会话模式（与小程序 ChatSession.mode 一致） */
+object ChatMode {
+    const val FREE = "free"            // 自由提问
+    const val WEAKPOINT = "weakpoint"  // 围绕某个薄弱点
+    const val EXERCISE = "exercise"    // 围绕某次练习
+}
+
+/** 辅导消息角色 */
+object ChatRole {
+    const val USER = "user"
+    const val ASSISTANT = "assistant"
+}
+
+/** 工作端录音场景（与小程序 WorkScenario 一致） */
+object WorkScenario {
+    const val MEETING = "meeting"  // 会议
+    const val TALK = "talk"        // 工作谈话
+    const val CALL = "call"        // 通话
+}
+
+/** 工作端录音处理状态（与小程序 WorkStatus 一致） */
+object WorkStatus {
+    const val RECORDED = "RECORDED"
+    const val TRANSCRIBING = "TRANSCRIBING"
+    const val TRANSCRIBED = "TRANSCRIBED"
+    const val ANALYZING = "ANALYZING"
+    const val ANALYZED = "ANALYZED"
+    const val FAILED = "FAILED"
+}
+
 @Entity(tableName = "children")
 @Serializable
 data class ChildEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val grade: String? = null,
+    /** 孩子专属辅导音色（MiniMax 预置音色值或复刻 voiceId）；null = 跟随全局默认 */
+    val voiceId: String? = null,
 )
 
 @Entity(
@@ -97,6 +129,8 @@ data class WeakPointEntity(
     val nextReviewAt: Long,    // epoch millis；-1 表示已完成不再排期
     val createdAt: Long,
     val sourceRecordingId: Long? = null,
+    /** 最近一次生成的练习内容（TaskContent JSON），退出后重进可继续看 */
+    val exerciseCache: String? = null,
 )
 
 @Entity(
@@ -182,4 +216,122 @@ data class RecordingWithChild(
     val createdAt: Long,
     val status: String,
     val childName: String,
+)
+
+/** AI 辅导会话（对应小程序 chat_sessions） */
+@Entity(
+    tableName = "chat_sessions",
+    foreignKeys = [ForeignKey(
+        entity = ChildEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["childId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("childId")],
+)
+@Serializable
+data class ChatSessionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val childId: Long,
+    val mode: String = ChatMode.FREE,
+    /** weakpoint 模式 = weakPointId，exercise 模式 = reviewTaskId，free 模式为 null */
+    val refId: Long? = null,
+    val title: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+/** AI 辅导消息（对应小程序 ChatSession.messages） */
+@Entity(
+    tableName = "chat_messages",
+    foreignKeys = [ForeignKey(
+        entity = ChatSessionEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["sessionId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("sessionId")],
+)
+@Serializable
+data class ChatMessageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    val role: String,
+    val text: String,
+    /** 孩子发来的照片本地路径（JSON 数组），仅 user 消息有 */
+    val imagePaths: String? = null,
+    /** assistant 消息的播报音频链接（MiniMax，24h 有效，过期需重新合成） */
+    val audioUrl: String? = null,
+    val createdAt: Long,
+)
+
+/** 孩子端激励星星数（对应小程序 kid_stars） */
+@Entity(
+    tableName = "kid_stars",
+    foreignKeys = [ForeignKey(
+        entity = ChildEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["childId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+)
+@Serializable
+data class KidStarEntity(
+    @PrimaryKey val childId: Long,
+    val stars: Int,
+)
+
+/** 工作端录音：会议/工作谈话/通话（对应小程序 WorkRecording） */
+@Entity(tableName = "work_recordings")
+@Serializable
+data class WorkRecordingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val scenario: String,
+    val filePath: String,
+    /** 长录音的分段文件（JSON 数组，>1 段时存在，首段与 filePath 相同） */
+    val segments: String? = null,
+    val durationSec: Int,
+    val createdAt: Long,
+    val status: String = WorkStatus.RECORDED,
+    /** 带说话人与时间戳的转写全文（[mm:ss] 说话人1：...） */
+    val transcriptText: String? = null,
+    /** AI 生成的纪要/总结（markdown 纯文本） */
+    val summary: String? = null,
+    val transcribedAt: Long? = null,
+    val analyzedAt: Long? = null,
+)
+
+/** 工作端待办（对应小程序 WorkTodo） */
+@Entity(
+    tableName = "work_todos",
+    foreignKeys = [ForeignKey(
+        entity = WorkRecordingEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["workRecordingId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("workRecordingId")],
+)
+@Serializable
+data class WorkTodoEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val workRecordingId: Long,
+    val text: String,
+    val assignee: String? = null,
+    val deadline: String? = null,
+    val done: Boolean = false,
+    val createdAt: Long,
+)
+
+/** 工作端待办列表联查结果 */
+data class WorkTodoWithRecording(
+    val id: Long,
+    val workRecordingId: Long,
+    val text: String,
+    val assignee: String?,
+    val deadline: String?,
+    val done: Boolean,
+    val createdAt: Long,
+    val recordingTitle: String,
 )

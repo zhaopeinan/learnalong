@@ -6,7 +6,10 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.example.asr.data.local.entity.ChatMessageEntity
+import com.example.asr.data.local.entity.ChatSessionEntity
 import com.example.asr.data.local.entity.ChildEntity
+import com.example.asr.data.local.entity.KidStarEntity
 import com.example.asr.data.local.entity.MasteryHistoryEntity
 import com.example.asr.data.local.entity.RecordingEntity
 import com.example.asr.data.local.entity.RecordingPhotoEntity
@@ -15,6 +18,9 @@ import com.example.asr.data.local.entity.ReviewTaskEntity
 import com.example.asr.data.local.entity.ReviewTaskWithWeakPoint
 import com.example.asr.data.local.entity.TranscriptSegmentEntity
 import com.example.asr.data.local.entity.WeakPointEntity
+import com.example.asr.data.local.entity.WorkRecordingEntity
+import com.example.asr.data.local.entity.WorkTodoEntity
+import com.example.asr.data.local.entity.WorkTodoWithRecording
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -278,4 +284,136 @@ interface RecordingPhotoDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<RecordingPhotoEntity>)
+}
+
+@Dao
+interface ChatDao {
+    @Insert
+    suspend fun insertSession(session: ChatSessionEntity): Long
+
+    @Update
+    suspend fun updateSession(session: ChatSessionEntity)
+
+    @Query("UPDATE chat_sessions SET title = :title, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun touchSession(id: Long, title: String, updatedAt: Long)
+
+    @Query("UPDATE chat_sessions SET updatedAt = :updatedAt WHERE id = :id")
+    suspend fun touchSession(id: Long, updatedAt: Long)
+
+    @Query("DELETE FROM chat_sessions WHERE id = :id")
+    suspend fun deleteSession(id: Long)
+
+    @Query("SELECT * FROM chat_sessions WHERE id = :id")
+    suspend fun getSession(id: Long): ChatSessionEntity?
+
+    @Query(
+        """
+        SELECT * FROM chat_sessions
+        WHERE (:childId IS NULL OR childId = :childId)
+        ORDER BY updatedAt DESC
+        """
+    )
+    fun observeSessions(childId: Long?): Flow<List<ChatSessionEntity>>
+
+    /** 会话上限裁剪：只保留最近更新的 maxCount 个（对应小程序 MAX_SESSIONS = 30） */
+    @Query(
+        """
+        DELETE FROM chat_sessions WHERE id NOT IN (
+            SELECT id FROM chat_sessions ORDER BY updatedAt DESC LIMIT :maxCount
+        )
+        """
+    )
+    suspend fun trimSessions(maxCount: Int)
+
+    @Insert
+    suspend fun insertMessage(message: ChatMessageEntity): Long
+
+    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY createdAt ASC, id ASC")
+    fun observeMessages(sessionId: Long): Flow<List<ChatMessageEntity>>
+
+    /** LLM 多轮上下文用：最近 limit 条（对应小程序 CONTEXT_MESSAGES = 12），返回为倒序，调用方反转 */
+    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY createdAt DESC, id DESC LIMIT :limit")
+    suspend fun getRecentMessages(sessionId: Long, limit: Int): List<ChatMessageEntity>
+
+    @Query("DELETE FROM chat_messages WHERE sessionId = :sessionId")
+    suspend fun deleteMessages(sessionId: Long)
+}
+
+@Dao
+interface KidStarDao {
+    /** 加一颗星，返回新总数由调用方重查（对应小程序 kid_stars） */
+    @Query(
+        """
+        INSERT INTO kid_stars (childId, stars) VALUES (:childId, 1)
+        ON CONFLICT(childId) DO UPDATE SET stars = stars + 1
+        """
+    )
+    suspend fun addStar(childId: Long)
+
+    @Query("SELECT stars FROM kid_stars WHERE childId = :childId")
+    suspend fun getStars(childId: Long): Int?
+
+    @Query("SELECT stars FROM kid_stars WHERE childId = :childId")
+    fun observeStars(childId: Long): Flow<Int?>
+}
+
+@Dao
+interface WorkRecordingDao {
+    @Insert
+    suspend fun insert(recording: WorkRecordingEntity): Long
+
+    @Update
+    suspend fun update(recording: WorkRecordingEntity)
+
+    @Query("UPDATE work_recordings SET status = :status WHERE id = :id")
+    suspend fun updateStatus(id: Long, status: String)
+
+    @Query("DELETE FROM work_recordings WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("SELECT * FROM work_recordings WHERE id = :id")
+    suspend fun getById(id: Long): WorkRecordingEntity?
+
+    @Query("SELECT * FROM work_recordings ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<WorkRecordingEntity>>
+
+    /** 云备份/恢复用 */
+    @Query("SELECT * FROM work_recordings")
+    suspend fun getAll(): List<WorkRecordingEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(items: List<WorkRecordingEntity>)
+}
+
+@Dao
+interface WorkTodoDao {
+    @Insert
+    suspend fun insertAll(items: List<WorkTodoEntity>)
+
+    @Update
+    suspend fun update(todo: WorkTodoEntity)
+
+    @Query("UPDATE work_todos SET done = :done WHERE id = :id")
+    suspend fun updateDone(id: Long, done: Boolean)
+
+    @Query("DELETE FROM work_todos WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query(
+        """
+        SELECT t.id, t.workRecordingId, t.text, t.assignee, t.deadline, t.done, t.createdAt,
+               r.title AS recordingTitle
+        FROM work_todos t JOIN work_recordings r ON r.id = t.workRecordingId
+        WHERE (:recordingId IS NULL OR t.workRecordingId = :recordingId)
+        ORDER BY t.done ASC, t.createdAt DESC
+        """
+    )
+    fun observeWithRecording(recordingId: Long?): Flow<List<WorkTodoWithRecording>>
+
+    /** 云备份/恢复用 */
+    @Query("SELECT * FROM work_todos")
+    suspend fun getAll(): List<WorkTodoEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(items: List<WorkTodoEntity>)
 }

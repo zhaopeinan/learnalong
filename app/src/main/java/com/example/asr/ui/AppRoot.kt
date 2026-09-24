@@ -75,6 +75,7 @@ import androidx.navigation.navArgument
 import com.example.asr.AsrApplication
 import com.example.asr.R
 import com.example.asr.audio.AudioImporter
+import com.example.asr.ui.agreement.AgreementScreen
 import com.example.asr.ui.backup.BackupScreen
 import com.example.asr.ui.chat.ChatScreen
 import com.example.asr.ui.children.ChildrenScreen
@@ -84,6 +85,7 @@ import com.example.asr.ui.mine.MineScreen
 import com.example.asr.ui.record.RecordScreen
 import com.example.asr.ui.recordings.RecordingsScreen
 import com.example.asr.ui.settings.SettingsScreen
+import com.example.asr.ui.splash.SplashScreen
 import com.example.asr.ui.today.TodayScreen
 import com.example.asr.ui.weakpoints.WeakPointExerciseScreen
 import com.example.asr.ui.weakpoints.WeakPointsScreen
@@ -176,13 +178,32 @@ fun AppRoot() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Routes.TODAY,
+            startDestination = Routes.SPLASH,
             // 只消费底部 inset（导航栏/手势条）；顶部留给各页面顶栏自己延伸到状态栏，
             // 让品牌色与信号栏融为一体
             modifier = Modifier.padding(
                 PaddingValues(bottom = innerPadding.calculateBottomPadding())
             ),
         ) {
+            composable(Routes.SPLASH) {
+                SplashScreen(
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(Routes.SPLASH) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(Routes.AGREEMENT) {
+                AgreementScreen(
+                    gate = true,
+                    onAgree = {
+                        navController.navigate(Routes.TODAY) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                )
+            }
             composable(Routes.TODAY) { TodayScreen() }
             composable(Routes.RECORDINGS) {
                 RecordingsScreen(
