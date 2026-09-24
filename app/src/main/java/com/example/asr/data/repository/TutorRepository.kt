@@ -40,6 +40,10 @@ import com.example.asr.domain.TranscriptText
 import com.example.asr.media.PhotoImporter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+private val taskContentJson = Json { ignoreUnknownKeys = true }
 
 class TutorRepository(
     private val weakPointDao: WeakPointDao,
@@ -93,9 +97,71 @@ class TutorRepository(
         recordingPhotoDao.getByRecording(recordingId).forEach { java.io.File(it.filePath).delete() }
     }
 
-    /** 薄弱点库直接出题：不缓存，每次生成新题 */
-    suspend fun generateContentForWeakPoint(wp: WeakPointEntity): TaskContent =
-        generate(wp.subject, wp.childId, wp.knowledgePoint, wp.description)
+    /**
+     * 薄弱点出题：优先读缓存（退出重进不丢题，对应小程序 getWeakPointContent）；
+     * 没有缓存则生成并缓存到薄弱点上。
+     */
+    suspend fun getWeakPointContent(wp: WeakPointEntity): TaskContent {
+        wp.exerciseCache?.let { cached ->
+            TaskContentParser.parse(cached)?.let { return it }
+        }
+        return regenerateWeakPointContent(wp)
+    }
+
+    /** 换一批题：强制重新生成并覆盖缓存（避开当前已有的题目，防止只是换数字） */
+    suspend fun regenerateWeakPointContent(wp: WeakPointEntity): TaskContent {
+        val cached = wp.exerciseCache?.let { TaskContentParser.parse(it) }
+        val avoid = cached?.exercises?.map { it.question } ?: emptyList()
+        val content = generate(wp.subject, wp.childId, wp.knowledgePoint, wp.description, avoid = avoid)
+        // 用最新行覆盖缓存，避免丢生成期间其它字段（掌握度等）的变更
+        weakPointDao.getById(wp.id)?.let { fresh ->
+            weakPointDao.update(fresh.copy(exerciseCache = taskContentJson.encodeToString(content)))
+        }
+        return content
+    }
+
+    /** 换一题：只重新生成第 index 题（避开其余题目），其余题目保留 */
+    suspend fun replaceExerciseInCache(wp: WeakPointEntity, index: Int): TaskContent {
+        val cached = wp.exerciseCache?.let { TaskContentParser.parse(it) }
+        require(cached != null && index in cached.exercises.indices) { "题目不存在，请换一批题" }
+        val settings = settingsStore.settings.first()
+        require(settings.apiKey.isNotBlank()) { "请先在设置页填写 SiliconFlow API Key" }
+        val grade = childDao.getById(wp.childId)?.grade
+        val userPrompt = TaskContentPrompt.buildReplace(
+            wp.subject, grade, wp.knowledgePoint, wp.description,
+            cached.exercises.map { it.question }, index + 1, cached.exercises.size,
+        )
+        val raw = try {
+            val api = NetworkClient.api(settings.baseUrl)
+            api.chatCompletions(
+                authorization = "Bearer ${settings.apiKey}",
+                request = ChatRequest(
+                    model = settings.llmModel,
+                    messages = listOf(
+                        ChatMessage(role = "system", content = TaskContentPrompt.SYSTEM),
+                        ChatMessage(role = "user", content = userPrompt),
+                    ),
+                ),
+            ).text
+        } catch (e: Exception) {
+            debugLog?.record(
+                action = "换一题",
+                model = settings.llmModel,
+                prompt = "[system]\n${TaskContentPrompt.SYSTEM}\n\n[user]\n$userPrompt",
+                error = e.toUserMessage(),
+            )
+            throw Exception(e.toUserMessage())
+        }
+        val item = TaskContentParser.parseExerciseItem(raw)
+            ?: throw IllegalStateException("换题失败，请重试")
+        val next = cached.copy(
+            exercises = cached.exercises.mapIndexed { i, e -> if (i == index) item else e },
+        )
+        weakPointDao.getById(wp.id)?.let { fresh ->
+            weakPointDao.update(fresh.copy(exerciseCache = taskContentJson.encodeToString(next)))
+        }
+        return next
+    }
 
     /** 获取任务的练习内容：有缓存直接解析返回；没有则调 LLM 按薄弱点+年级生成并缓存。 */
     suspend fun getTaskContent(task: ReviewTaskWithWeakPoint): TaskContent {
@@ -105,18 +171,19 @@ class TutorRepository(
         return generate(task.subject, task.childId, task.knowledgePoint, task.description, cacheTaskId = task.taskId)
     }
 
-    /** 调 LLM 生成练习内容（带科目+年级），成功后将原文缓存到任务 */
+    /** 调 LLM 生成练习内容（带科目+年级，avoid 为要避开的已出题目），成功后将原文缓存到任务 */
     private suspend fun generate(
         subject: String,
         childId: Long,
         knowledgePoint: String,
         description: String,
         cacheTaskId: Long? = null,
+        avoid: List<String> = emptyList(),
     ): TaskContent {
         val settings = settingsStore.settings.first()
         require(settings.apiKey.isNotBlank()) { "请先在设置页填写 SiliconFlow API Key" }
         val grade = childDao.getById(childId)?.grade
-        val userPrompt = TaskContentPrompt.build(subject, grade, knowledgePoint, description)
+        val userPrompt = TaskContentPrompt.build(subject, grade, knowledgePoint, description, avoid)
 
         val raw = try {
             val api = NetworkClient.api(settings.baseUrl)

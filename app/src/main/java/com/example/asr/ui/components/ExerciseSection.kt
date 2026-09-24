@@ -3,16 +3,19 @@ package com.example.asr.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.asr.data.remote.dto.Exercise
@@ -25,18 +28,25 @@ sealed interface TaskContentState {
     data class Failed(val message: String) : TaskContentState
 }
 
-/** 练习区块：按状态渲染 骨架屏 / 题目列表 / 失败重试 */
+/** 练习区块：按状态渲染 骨架屏 / 题目列表 / 失败重试；onReplaceOne 非空时每题提供「换一题」 */
 @Composable
 fun ExerciseSection(
     state: TaskContentState?,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onReplaceOne: ((Int) -> Unit)? = null,
+    replacingIndex: Int? = null,
 ) {
     Column(modifier = modifier) {
         when (state) {
             is TaskContentState.Ready -> {
                 state.content.exercises.forEachIndexed { i, exercise ->
-                    ExerciseItem(index = i + 1, exercise = exercise)
+                    ExerciseItem(
+                        index = i + 1,
+                        exercise = exercise,
+                        replacing = replacingIndex == i,
+                        onReplace = onReplaceOne?.let { { it(i) } },
+                    )
                     Spacer(Modifier.height(8.dp))
                 }
                 if (state.content.tips.isNotBlank()) {
@@ -68,19 +78,32 @@ fun ExerciseSection(
     }
 }
 
-/** 单道练习题：题干 + 点击展开答案/提示 */
+/** 单道练习题：题干 + 点击展开答案/提示；onReplace 非空时提供「换一题」 */
 @Composable
-private fun ExerciseItem(index: Int, exercise: Exercise) {
+private fun ExerciseItem(
+    index: Int,
+    exercise: Exercise,
+    replacing: Boolean = false,
+    onReplace: (() -> Unit)? = null,
+) {
     var revealed by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { revealed = !revealed },
     ) {
-        Text(
-            "$index. ${exercise.question}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "$index. ${exercise.question}",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            if (onReplace != null) {
+                TextButton(onClick = onReplace, enabled = !replacing) {
+                    Text(if (replacing) "换题中…" else "换一题", maxLines = 1)
+                }
+            }
+        }
         AnimatedVisibility(visible = revealed) {
             Column {
                 Spacer(Modifier.height(4.dp))

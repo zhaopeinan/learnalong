@@ -1,5 +1,6 @@
 package com.example.asr.data.remote
 
+import com.example.asr.data.remote.dto.Exercise
 import com.example.asr.data.remote.dto.TaskContent
 import kotlinx.serialization.json.Json
 
@@ -20,6 +21,20 @@ object TaskContentParser {
             json.decodeFromString<TaskContent>(cleaned.substring(start, end + 1))
                 .takeIf { it.exercises.any { e -> e.question.isNotBlank() } }
                 ?.let { c -> c.copy(exercises = c.exercises.filter { e -> e.question.isNotBlank() }) }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** 单题替换输出解析（练习页「换一题」）：{"question","answer","hint"} */
+    fun parseExerciseItem(raw: String): Exercise? {
+        val cleaned = stripCodeFence(raw)
+        val start = cleaned.indexOf('{')
+        val end = cleaned.lastIndexOf('}')
+        if (start < 0 || end <= start) return null
+        return try {
+            json.decodeFromString<Exercise>(cleaned.substring(start, end + 1))
+                .takeIf { it.question.isNotBlank() }
         } catch (e: Exception) {
             null
         }
