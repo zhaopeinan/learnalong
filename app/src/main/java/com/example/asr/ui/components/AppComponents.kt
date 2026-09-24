@@ -11,6 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -27,9 +28,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -53,14 +58,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
+// 小程序 --card-border：比 outlineVariant 更浅，卡片专用（亮 #EEF1EC / 暗 #2A322B）
+private val CardBorderLight = Color(0xFFEEF1EC)
+private val CardBorderDark = Color(0xFF2A322B)
+
+/** 当前配色方案是否为深色（跟随主题设置，而非系统） */
+private val isDarkScheme: Boolean
+    @Composable get() = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
 /**
- * 扁平卡片：无阴影，用 1dp outlineVariant 浅边框表达层级。
+ * 通用卡片：白底 + 1dp 浅边框 + 柔和阴影（对齐小程序 .card：0 3dp 12dp rgba(26,33,28,.08)）。
  * 传入 onClick 时附带 scale 0.98 按压反馈。
  */
 @Composable
@@ -71,8 +85,8 @@ fun AppCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = CardDefaults.cardColors(containerColor = containerColor)
-    val elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    val border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    val elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    val border = BorderStroke(1.dp, if (isDarkScheme) CardBorderDark else CardBorderLight)
     if (onClick == null) {
         Card(
             modifier = modifier,
@@ -142,7 +156,7 @@ fun EmptyState(
         )
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.height(24.dp))
-            Button(onClick = onAction, shape = MaterialTheme.shapes.small) {
+            Button(onClick = onAction, shape = CircleShape) {
                 Text(actionLabel)
             }
         }
@@ -322,4 +336,57 @@ fun AppBackTopBar(
             navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
         ),
     )
+}
+
+/**
+ * 分组菜单项（对齐小程序 .menu-item）：36dp 圆角 10dp 图标瓦片 + 标题/副标题 + 右箭头。
+ * onClick 为 null 时不显示箭头、不可点击（纯展示行）。放在 AppCard 内组成 menu-card。
+ */
+@Composable
+fun MenuItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+            )
+        }
+        if (onClick != null) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }

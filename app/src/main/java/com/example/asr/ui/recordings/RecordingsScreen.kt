@@ -110,6 +110,14 @@ fun RecordingsScreen(
             app.container.pendingImport.value = null
         }
     }
+    // 底部动作面板拍照/选图产出的错题照片
+    val sharedPhotoImport by app.container.pendingPhotoImport.collectAsStateWithLifecycle()
+    LaunchedEffect(sharedPhotoImport) {
+        sharedPhotoImport?.let {
+            photoFiles = it
+            app.container.pendingPhotoImport.value = null
+        }
+    }
 
     // 系统文件选择器（音频）
     val pickerScope = rememberCoroutineScope()

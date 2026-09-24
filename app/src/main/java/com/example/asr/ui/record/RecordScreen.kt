@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -170,7 +171,7 @@ fun RecordScreen(onSaved: () -> Unit) {
             if (!hasAudioPermission) {
                 Button(
                     onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                    shape = MaterialTheme.shapes.small,
+                    shape = CircleShape,
                 ) {
                     Text("授权麦克风", maxLines = 1)
                 }
@@ -182,7 +183,7 @@ fun RecordScreen(onSaved: () -> Unit) {
                         contentColor = MaterialTheme.colorScheme.onError,
                     ),
                     enabled = !ui.saving,
-                    shape = MaterialTheme.shapes.small,
+                    shape = CircleShape,
                 ) {
                     if (ui.saving) {
                         CircularProgressIndicator(
@@ -198,13 +199,13 @@ fun RecordScreen(onSaved: () -> Unit) {
                 Button(
                     onClick = vm::startRecording,
                     enabled = ui.selectedChildId != null && ui.subject.isNotBlank(),
-                    shape = MaterialTheme.shapes.small,
+                    shape = CircleShape,
                 ) {
                     Text("开始录音", maxLines = 1)
                 }
             }
             Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onSaved, shape = MaterialTheme.shapes.small) {
+            OutlinedButton(onClick = onSaved, shape = CircleShape) {
                 Text("返回")
             }
         }

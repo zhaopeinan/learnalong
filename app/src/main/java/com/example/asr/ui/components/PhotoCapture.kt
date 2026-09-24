@@ -29,7 +29,12 @@ import java.util.Locale
  * 调用方拿到已复制进私有目录的文件列表（onResult）。
  */
 class PhotoCapture internal constructor(
+    /** 弹出来源选择（拍照 / 相册） */
     val launch: () -> Unit,
+    /** 直接调起拍照（可连拍多张） */
+    val launchCamera: () -> Unit,
+    /** 直接调起相册多选 */
+    val launchGallery: () -> Unit,
 )
 
 @Composable
@@ -91,6 +96,12 @@ fun rememberPhotoCapture(
         cameraLauncher.launch(uri)
     }
 
+    fun launchGallery() {
+        galleryLauncher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        )
+    }
+
     // 来源选择弹窗
     if (showSourceDialog) {
         AlertDialog(
@@ -106,9 +117,7 @@ fun rememberPhotoCapture(
             dismissButton = {
                 TextButton(onClick = {
                     showSourceDialog = false
-                    galleryLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
+                    launchGallery()
                 }) { Text("从相册选择") }
             },
         )
@@ -138,5 +147,11 @@ fun rememberPhotoCapture(
         )
     }
 
-    return remember { PhotoCapture(launch = { showSourceDialog = true }) }
+    return remember {
+        PhotoCapture(
+            launch = { showSourceDialog = true },
+            launchCamera = { launchCamera() },
+            launchGallery = { launchGallery() },
+        )
+    }
 }

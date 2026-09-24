@@ -6,6 +6,7 @@ object Routes {
     const val WEAK_POINTS = "weak_points"
     const val MINE = "mine"
     const val RECORD = "record"
+    const val CHAT = "chat"
     const val CHILDREN = "children"
     const val SETTINGS = "settings"
     const val BACKUP = "backup"
