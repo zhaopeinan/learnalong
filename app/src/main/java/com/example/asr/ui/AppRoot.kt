@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -160,6 +161,15 @@ fun AppRoot() {
     fun dismissPanel() {
         scope.launch { sheetState.hide() }.invokeOnCompletion {
             if (!sheetState.isVisible) showPanel = false
+        }
+    }
+
+    // 录音常驻通知点击：跳回录音页（录音在前台服务中持续，回页后自动恢复展示）
+    val pendingOpenRecord by app.container.pendingOpenRecord.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingOpenRecord) {
+        if (pendingOpenRecord) {
+            app.container.pendingOpenRecord.value = false
+            navController.navigate(Routes.RECORD) { launchSingleTop = true }
         }
     }
 

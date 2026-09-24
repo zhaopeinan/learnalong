@@ -5,12 +5,14 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -19,6 +21,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -166,6 +169,30 @@ fun RecordScreen(onSaved: () -> Unit) {
                 text = ui.elapsedSec.toDurationString(),
                 style = MaterialTheme.typography.displayMedium,
             )
+            // 实时音量条（录音中才有振幅）
+            if (ui.isRecording && !ui.isPaused) {
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { ui.amplitude },
+                    modifier = Modifier.fillMaxWidth(0.6f),
+                )
+            }
+            if (ui.isRecording && ui.segmentCount > 1) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "超长录音已自动分段 · 第 ${ui.segmentCount} 段",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (ui.interruptedFinished) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "录音曾被系统中断，已保留实际录到的内容",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Spacer(Modifier.height(24.dp))
 
             if (!hasAudioPermission) {
@@ -176,12 +203,36 @@ fun RecordScreen(onSaved: () -> Unit) {
                     Text("授权麦克风", maxLines = 1)
                 }
             } else if (ui.isRecording) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    OutlinedButton(
+                        onClick = { if (ui.isPaused) vm.resumeRecording() else vm.pauseRecording() },
+                        shape = CircleShape,
+                    ) {
+                        Text(if (ui.isPaused) "继续" else "暂停", maxLines = 1)
+                    }
+                    Button(
+                        onClick = vm::stopAndSave,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                        enabled = !ui.saving,
+                        shape = CircleShape,
+                    ) {
+                        if (ui.saving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onError,
+                            )
+                        } else {
+                            Text("停止并保存", maxLines = 1)
+                        }
+                    }
+                }
+            } else if (ui.interruptedFinished) {
                 Button(
                     onClick = vm::stopAndSave,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
                     enabled = !ui.saving,
                     shape = CircleShape,
                 ) {
@@ -189,10 +240,9 @@ fun RecordScreen(onSaved: () -> Unit) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(18.dp),
                             strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onError,
                         )
                     } else {
-                        Text("停止并保存", maxLines = 1)
+                        Text("保存录音", maxLines = 1)
                     }
                 }
             } else {

@@ -54,6 +54,9 @@ class AppContainer(context: Application) {
     /** 底部动作面板拍照/相册产出的错题照片（已复制进私有目录），等待用户在记录页确认归属 */
     val pendingPhotoImport = MutableStateFlow<List<File>?>(null)
 
+    /** 录音常驻通知点击后置 true，AppRoot 据此跳到录音页 */
+    val pendingOpenRecord = MutableStateFlow(false)
+
     /** MiniMax 语音合成 / 家长声音复刻 */
     val miniMaxApi = NetworkClient.minimaxApi(AppSettings.MINIMAX_BASE_URL)
 }

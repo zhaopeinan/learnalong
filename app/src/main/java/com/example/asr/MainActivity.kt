@@ -17,6 +17,7 @@ import androidx.core.content.IntentCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.example.asr.audio.AudioImporter
+import com.example.asr.audio.RecordingService
 import com.example.asr.data.settings.AppSettings
 import com.example.asr.ui.AppRoot
 import com.example.asr.ui.theme.ASRTheme
@@ -48,6 +49,20 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleSharedAudio(intent)
+        handleOpenRecord(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        handleOpenRecord(intent)
+    }
+
+    /** 录音常驻通知点击：跳到录音页（录音在服务里持续进行，回页后重新绑定展示） */
+    private fun handleOpenRecord(intent: Intent?) {
+        if (intent?.getBooleanExtra(RecordingService.EXTRA_OPEN_RECORD, false) == true) {
+            intent.removeExtra(RecordingService.EXTRA_OPEN_RECORD)
+            (application as AsrApplication).container.pendingOpenRecord.value = true
+        }
     }
 
     /** 接收其他 App（如小米录音机）分享来的音频，复制后等用户在记录页确认 */

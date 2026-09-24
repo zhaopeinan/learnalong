@@ -43,7 +43,7 @@ import com.example.asr.data.local.entity.WorkTodoEntity
         WorkRecordingEntity::class,
         WorkTodoEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -222,6 +222,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v7 → v8：recordings 表新增 segments 列（长录音分段文件 JSON 数组） */
+        private val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE recordings ADD COLUMN segments TEXT")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -230,7 +237,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "asr_tutor.db",
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
-                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                 ).build().also { INSTANCE = it }
             }
     }

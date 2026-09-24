@@ -78,6 +78,8 @@ data class RecordingEntity(
     val childId: Long,
     val subject: String,
     val filePath: String,
+    /** 长录音的分段文件（JSON 数组，>1 段时存在，首段与 filePath 相同） */
+    val segments: String? = null,
     val durationSec: Int,
     val createdAt: Long,
     val status: String = RecordingStatus.RECORDED,

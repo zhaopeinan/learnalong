@@ -16,6 +16,7 @@ import com.example.asr.MainActivity
 object NotificationHelper {
 
     const val CHANNEL_ID = "daily_review"
+    const val RECORDING_CHANNEL_ID = "recording"
     private const val NOTIFICATION_ID = 1001
 
     fun ensureChannel(context: Context) {
@@ -24,6 +25,16 @@ object NotificationHelper {
             "每日复习提醒",
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply { description = "提醒今天到期的薄弱点复习任务" }
+        context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
+    }
+
+    /** 录音常驻通知渠道：低重要性，不响铃不震动，避免每秒刷新打扰 */
+    fun ensureRecordingChannel(context: Context) {
+        val channel = NotificationChannel(
+            RECORDING_CHANNEL_ID,
+            "录音状态",
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply { description = "录音期间的常驻计时通知" }
         context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
     }
 
