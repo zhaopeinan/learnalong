@@ -2,6 +2,9 @@ package com.example.asr
 
 import android.app.Application
 import com.example.asr.data.local.AppDatabase
+import com.example.asr.data.local.DemoSeeder
+import com.example.asr.data.local.MediaStorage
+import com.example.asr.data.remote.DebugLog
 import com.example.asr.data.remote.NetworkClient
 import com.example.asr.data.repository.ChildRepository
 import com.example.asr.data.repository.ChatRepository
@@ -14,6 +17,7 @@ import com.example.asr.data.sync.SyncManager
 import com.example.asr.data.sync.isOnWifi
 import com.example.asr.domain.KidReward
 import com.example.asr.media.SpeechSynthesizer
+import com.example.asr.ui.components.TourController
 import com.example.asr.worker.DailyReviewWorker
 import com.example.asr.worker.NotificationHelper
 import kotlinx.coroutines.CoroutineScope
@@ -29,8 +33,11 @@ class AppContainer(context: Application) {
     val settingsStore = SettingsStore(context)
     private val db = AppDatabase.get(context)
 
+    /** 调试模式失败请求日志（设置页密码开启，最近 10 条） */
+    val debugLog = DebugLog(context, settingsStore)
+
     val childRepository = ChildRepository(db.childDao())
-    val recordingRepository = RecordingRepository(db.recordingDao(), db.transcriptDao(), settingsStore)
+    val recordingRepository = RecordingRepository(db.recordingDao(), db.transcriptDao(), settingsStore, debugLog)
     val tutorRepository = TutorRepository(
         weakPointDao = db.weakPointDao(),
         reviewTaskDao = db.reviewTaskDao(),
@@ -40,10 +47,20 @@ class AppContainer(context: Application) {
         masteryHistoryDao = db.masteryHistoryDao(),
         recordingPhotoDao = db.recordingPhotoDao(),
         settingsStore = settingsStore,
+        debugLog = debugLog,
     )
 
     /** 坚果云 WebDAV 备份/恢复 */
     val syncManager = SyncManager(context, db, settingsStore)
+
+    /** 本地媒体存储管理（备份页存储区块：占用统计/音频清理/孤儿文件） */
+    val mediaStorage = MediaStorage(
+        context = context,
+        recordingDao = db.recordingDao(),
+        childDao = db.childDao(),
+        workRecordingDao = db.workRecordingDao(),
+        settingsStore = settingsStore,
+    )
 
     /** 共享备份执行器（启动自动备份 / 提醒弹窗 / 云备份页共用） */
     val backupController = BackupController(syncManager, settingsStore)
@@ -64,7 +81,7 @@ class AppContainer(context: Application) {
     val miniMaxApi = NetworkClient.minimaxApi(AppSettings.MINIMAX_BASE_URL)
 
     /** MiniMax 语音合成封装（孩子端「读出来」/ AI 播报共用） */
-    val speechSynthesizer = SpeechSynthesizer(miniMaxApi, settingsStore)
+    val speechSynthesizer = SpeechSynthesizer(miniMaxApi, settingsStore, debugLog)
 
     /** 苏格拉底辅导对话（问老师） */
     val chatRepository = ChatRepository(
@@ -73,6 +90,22 @@ class AppContainer(context: Application) {
         weakPointDao = db.weakPointDao(),
         settingsStore = settingsStore,
         speechSynthesizer = speechSynthesizer,
+        debugLog = debugLog,
+    )
+
+    /** 演示数据播种（首启空库放示例孩子/薄弱点，对应小程序 seedDemoDataIfEmpty） */
+    val demoSeeder = DemoSeeder(
+        childDao = db.childDao(),
+        weakPointDao = db.weakPointDao(),
+        reviewTaskDao = db.reviewTaskDao(),
+        masteryHistoryDao = db.masteryHistoryDao(),
+        settingsStore = settingsStore,
+    )
+
+    /** 新手引导控制器（对应小程序 tour.ts + tour-guide 组件） */
+    val tourController = TourController(
+        settingsStore = settingsStore,
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     )
 
     /** 孩子端星星激励 */

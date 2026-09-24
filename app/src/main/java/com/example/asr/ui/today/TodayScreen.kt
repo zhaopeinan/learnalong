@@ -52,13 +52,15 @@ import com.example.asr.ui.components.EmptyState
 import com.example.asr.ui.components.ExerciseSection
 import com.example.asr.ui.components.MasteryProgress
 import com.example.asr.ui.components.TaskContentState
+import com.example.asr.ui.components.TourPlan
+import com.example.asr.ui.components.tourTarget
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen() {
     val app = LocalContext.current.applicationContext as AsrApplication
     val vm: TodayViewModel = viewModel(factory = viewModelFactory {
-        initializer { TodayViewModel(app.container.tutorRepository) }
+        initializer { TodayViewModel(app.container.tutorRepository, app.container.demoSeeder) }
     })
     val tasks by vm.tasks.collectAsStateWithLifecycle()
     val contents by vm.contents.collectAsStateWithLifecycle()
@@ -81,7 +83,10 @@ fun TodayScreen() {
                         icon = Icons.Default.CheckCircle,
                         title = "全部完成",
                         description = "今天没有到期的复习任务，保持得不错，明天再来看看吧",
-                        modifier = Modifier.fillMaxWidth().padding(top = 64.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 64.dp)
+                            .tourTarget(TourPlan.TAG_TODAY_CARD),
                     )
                 }
             } else {
@@ -92,11 +97,18 @@ fun TodayScreen() {
                         onLoadContent = { vm.loadContent(item) },
                         onMastered = { vm.mark(item, mastered = true) },
                         onStillWeak = { vm.mark(item, mastered = false) },
-                        modifier = Modifier.animateItem(
-                            fadeInSpec = tween(250),
-                            fadeOutSpec = tween(250),
-                            placementSpec = tween(250),
-                        ),
+                        modifier = Modifier
+                            .animateItem(
+                                fadeInSpec = tween(250),
+                                fadeOutSpec = tween(250),
+                                placementSpec = tween(250),
+                            )
+                            // 新手引导高亮目标：第一张任务卡（对应小程序 .today-card）
+                            .then(
+                                if (item.taskId == tasks.first().taskId) {
+                                    Modifier.tourTarget(TourPlan.TAG_TODAY_CARD)
+                                } else Modifier
+                            ),
                     )
                 }
             }

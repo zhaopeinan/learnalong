@@ -65,6 +65,10 @@ interface RecordingDao {
     @Query("UPDATE recordings SET polishedAt = :at WHERE id = :id")
     suspend fun updatePolishedAt(id: Long, at: Long)
 
+    /** 音频清理标记（对应小程序 patchRecording 的 audioRemoved/audioBackedUp） */
+    @Query("UPDATE recordings SET audioRemoved = :removed, audioBackedUp = :backedUp WHERE id = :id")
+    suspend fun updateAudioFlags(id: Long, removed: Boolean, backedUp: Boolean)
+
     @Query("DELETE FROM recordings WHERE id = :id")
     suspend fun deleteById(id: Long)
 

@@ -8,6 +8,7 @@ import com.example.asr.data.local.entity.ChatMode
 import com.example.asr.data.local.entity.ChatRole
 import com.example.asr.data.local.entity.ChatSessionEntity
 import com.example.asr.data.local.entity.ChildEntity
+import com.example.asr.data.remote.DebugLog
 import com.example.asr.data.remote.NetworkClient
 import com.example.asr.data.remote.TaskContentParser
 import com.example.asr.data.remote.VerboseJsonTranscriptParser
@@ -46,6 +47,7 @@ class ChatRepository(
     private val weakPointDao: WeakPointDao,
     private val settingsStore: SettingsStore,
     private val speechSynthesizer: SpeechSynthesizer,
+    private val debugLog: DebugLog? = null,
 ) {
 
     /** 打开会话的结果：created=true 表示新建（调用方补固定开场白） */
@@ -223,6 +225,14 @@ class ChatRepository(
                 ),
             ).text.trim()
         } catch (e: Exception) {
+            debugLog?.record(
+                action = "照片识别",
+                model = settings.vlmModel,
+                prompt = "[system]\n${SocraticPrompt.PHOTO_DESCRIBE_SYSTEM}\n\n[user]\n" +
+                    SocraticPrompt.buildPhotoDescribePrompt(question, paths.size) +
+                    "\n" + paths.joinToString("\n") { "[image] ${it.name}" },
+                error = e.toUserMessage(),
+            )
             throw Exception(e.toUserMessage())
         }
         if (description.isEmpty()) throw IllegalStateException("老师没看清照片，请再拍清楚一点")
@@ -281,6 +291,12 @@ class ChatRepository(
             if (text.isEmpty()) throw IllegalStateException("没有听清，请靠近一点再说一次")
             return text
         } catch (e: Exception) {
+            debugLog?.record(
+                action = "语音转写",
+                model = settings.asrModel,
+                prompt = "POST audio/transcriptions（multipart）\n文件：${file.name}\n路径：${file.absolutePath}\nresponse_format：verbose_json",
+                error = e.toUserMessage(),
+            )
             throw Exception(e.toUserMessage())
         }
     }
@@ -311,6 +327,7 @@ class ChatRepository(
             buildSessionContext(child, session.mode, session.refId, strict = false).first
         }
         val history = chatDao.getRecentMessages(session.id, CONTEXT_MESSAGES).reversed()
+        val userText = ChatText.buildHistoryText(history)
         val raw = try {
             NetworkClient.api(settings.baseUrl).chatCompletions(
                 authorization = "Bearer ${settings.apiKey}",
@@ -318,11 +335,17 @@ class ChatRepository(
                     model = settings.llmModel,
                     messages = listOf(
                         ChatMessage(role = "system", content = system),
-                        ChatMessage(role = "user", content = ChatText.buildHistoryText(history)),
+                        ChatMessage(role = "user", content = userText),
                     ),
                 ),
             ).text.trim()
         } catch (e: Exception) {
+            debugLog?.record(
+                action = "辅导对话",
+                model = settings.llmModel,
+                prompt = "[system]\n$system\n\n[user]\n$userText",
+                error = e.toUserMessage(),
+            )
             throw Exception(e.toUserMessage())
         }
         val cleaned = ChatText.cleanReplyText(raw)

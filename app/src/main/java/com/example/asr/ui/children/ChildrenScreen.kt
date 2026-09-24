@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -25,9 +27,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,14 +59,26 @@ import com.example.asr.ui.components.EmptyState
 fun ChildrenScreen(onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as AsrApplication
     val vm: ChildrenViewModel = viewModel(factory = viewModelFactory {
-        initializer { ChildrenViewModel(app.container.childRepository) }
+        initializer { ChildrenViewModel(app) }
     })
     val children by vm.children.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val previewingId by vm.previewingId.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<ChildEntity?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val toast by vm.toast.collectAsStateWithLifecycle()
+    LaunchedEffect(toast) {
+        toast?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.consumeToast()
+        }
+    }
 
     Scaffold(
         topBar = { AppBackTopBar("孩子管理", onBack = onBack) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -109,6 +126,11 @@ fun ChildrenScreen(onBack: () -> Unit) {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
+                                Text(
+                                    "辅导音色：${vm.voiceLabel(child.voiceId)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                             Spacer(Modifier.weight(1f))
                             TextButton(onClick = { editing = child }) { Text("编辑") }
@@ -127,9 +149,13 @@ fun ChildrenScreen(onBack: () -> Unit) {
             title = "添加孩子",
             initialName = "",
             initialGrade = "",
+            initialVoiceId = "",
+            voiceOptions = vm.voiceOptions(),
+            previewingId = previewingId,
+            onPreviewVoice = vm::previewVoice,
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, grade ->
-                vm.add(name, grade)
+            onConfirm = { name, grade, voiceId ->
+                vm.add(name, grade, voiceId)
                 showAddDialog = false
             },
         )
@@ -139,9 +165,19 @@ fun ChildrenScreen(onBack: () -> Unit) {
             title = "编辑孩子",
             initialName = child.name,
             initialGrade = child.grade ?: "",
+            initialVoiceId = child.voiceId ?: "",
+            voiceOptions = vm.voiceOptions(),
+            previewingId = previewingId,
+            onPreviewVoice = vm::previewVoice,
             onDismiss = { editing = null },
-            onConfirm = { name, grade ->
-                vm.update(child.copy(name = name.trim(), grade = grade.trim().ifEmpty { null }))
+            onConfirm = { name, grade, voiceId ->
+                vm.update(
+                    child.copy(
+                        name = name.trim(),
+                        grade = grade.trim().ifEmpty { null },
+                        voiceId = voiceId.takeIf { it.isNotBlank() },
+                    )
+                )
                 editing = null
             },
         )
@@ -162,8 +198,12 @@ private fun ChildEditDialog(
     title: String,
     initialName: String,
     initialGrade: String,
+    initialVoiceId: String,
+    voiceOptions: List<Pair<String, String>>,
+    previewingId: String,
+    onPreviewVoice: (String) -> Unit,
     onDismiss: () -> Unit,
-    onConfirm: (String, String) -> Unit,
+    onConfirm: (String, String, String) -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
     // 旧数据可能是自由文本（如"三年级"），无法拆分时学段/年级留空让用户重选
@@ -175,6 +215,8 @@ private fun ChildEditDialog(
     var level by remember { mutableStateOf(initialLevel) }
     var stageExpanded by remember { mutableStateOf(false) }
     var levelExpanded by remember { mutableStateOf(false) }
+    var voiceId by remember { mutableStateOf(initialVoiceId) }
+    var voiceExpanded by remember { mutableStateOf(false) }
     val gradeValid = stage != null && level != null
 
     AlertDialog(
@@ -256,11 +298,57 @@ private fun ChildEditDialog(
                         }
                     }
                 }
+                // 辅导音色（对齐小程序 children 页的 voiceId 选择；空 = 跟随全局默认）
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ExposedDropdownMenuBox(
+                        expanded = voiceExpanded,
+                        onExpandedChange = { voiceExpanded = it },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        OutlinedTextField(
+                            value = voiceOptions.firstOrNull { it.first == voiceId }?.second
+                                ?: voiceOptions.first().second,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("辅导音色") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = voiceExpanded)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = voiceExpanded,
+                            onDismissRequest = { voiceExpanded = false },
+                        ) {
+                            voiceOptions.forEach { (key, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        voiceId = key
+                                        voiceExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    TextButton(
+                        onClick = { onPreviewVoice(voiceId) },
+                        enabled = previewingId.isEmpty(),
+                    ) {
+                        if (previewingId == voiceId) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("试听")
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name, "${stage}${level}") },
+                onClick = { onConfirm(name, "${stage}${level}", voiceId) },
                 enabled = name.isNotBlank() && gradeValid,
             ) {
                 Text("保存")

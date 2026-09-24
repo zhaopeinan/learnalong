@@ -41,7 +41,7 @@ fun SplashScreen(onNavigate: (String) -> Unit) {
         delay(1600)
         val settings = app.container.settingsStore.settings.first()
         val route = when {
-            !settings.agreementAgreedV1 -> Routes.AGREEMENT
+            !settings.agreementAgreedV1 -> Routes.agreementGate()
             settings.appMode == AppSettings.MODE_KID && settings.kidChildId != null -> Routes.KID_PROGRESS
             app.container.pendingImport.value != null -> Routes.RECORDINGS
             else -> Routes.TODAY

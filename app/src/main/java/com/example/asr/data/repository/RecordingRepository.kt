@@ -8,6 +8,7 @@ import com.example.asr.data.local.entity.RecordingEntity
 import com.example.asr.data.local.entity.RecordingStatus
 import com.example.asr.data.local.entity.RecordingWithChild
 import com.example.asr.data.local.entity.TranscriptSegmentEntity
+import com.example.asr.data.remote.DebugLog
 import com.example.asr.data.remote.NetworkClient
 import com.example.asr.data.remote.ParsedSegment
 import com.example.asr.data.remote.ProgressRequestBody
@@ -29,6 +30,7 @@ class RecordingRepository(
     private val recordingDao: RecordingDao,
     private val transcriptDao: TranscriptDao,
     private val settingsStore: SettingsStore,
+    private val debugLog: DebugLog? = null,
     private val transcriptParser: TranscriptParser = VerboseJsonTranscriptParser(),
 ) {
 
@@ -170,6 +172,12 @@ class RecordingRepository(
             return parsed.size
         } catch (e: Exception) {
             recordingDao.updateStatus(recordingId, RecordingStatus.FAILED)
+            debugLog?.record(
+                action = "语音转写",
+                model = settings.asrModel,
+                prompt = "文件：${files.joinToString("、") { File(it).name }}\n路径：\n${files.joinToString("\n")}",
+                error = e.stackTraceToString().take(4000),
+            )
             throw Exception(e.toUserMessage())
         } finally {
             tempChunks.forEach { AudioSplitter.deleteChunkFile(it) }

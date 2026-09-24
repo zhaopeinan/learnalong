@@ -45,6 +45,8 @@ import com.example.asr.domain.ParentLock
 import com.example.asr.ui.components.AppCard
 import com.example.asr.ui.components.AppTopSpace
 import com.example.asr.ui.components.MenuItem
+import com.example.asr.ui.components.TourPlan
+import com.example.asr.ui.components.tourTarget
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,6 +55,9 @@ fun MineScreen(
     onOpenChildren: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenBackup: () -> Unit,
+    onOpenGuide: () -> Unit,
+    onOpenAgreement: () -> Unit,
+    onOpenAbout: () -> Unit,
     onEnterKidMode: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as AsrApplication
@@ -129,11 +134,29 @@ fun MineScreen(
             }
             Spacer(Modifier.height(16.dp))
             AppCard(modifier = Modifier.fillMaxWidth()) {
-                MenuItem(
-                    title = "关于",
-                    subtitle = "亲子辅导记录：录音 → 说话人分离转写 → 薄弱点分析 → 艾宾浩斯复习",
-                    icon = Icons.Filled.Info,
-                )
+                Column {
+                    MenuItem(
+                        title = "使用指南",
+                        subtitle = "图文教程，从第一次录音到复习巩固",
+                        icon = ImageVector.vectorResource(R.drawable.ic_menu_guide),
+                        modifier = Modifier.tourTarget(TourPlan.TAG_MENU_GUIDE),
+                        onClick = onOpenGuide,
+                    )
+                    MenuDivider()
+                    MenuItem(
+                        title = "用户协议与隐私政策",
+                        subtitle = "了解我们如何收集、使用和保护信息",
+                        icon = ImageVector.vectorResource(R.drawable.ic_menu_doc),
+                        onClick = onOpenAgreement,
+                    )
+                    MenuDivider()
+                    MenuItem(
+                        title = "关于伴学记",
+                        subtitle = "版本信息与开发团队",
+                        icon = Icons.Filled.Info,
+                        onClick = onOpenAbout,
+                    )
+                }
             }
         }
     }

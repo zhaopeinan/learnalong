@@ -1,5 +1,6 @@
 package com.example.asr.ui.backup
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,16 +14,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +42,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.asr.AsrApplication
 import com.example.asr.data.sync.BackupMode
+import com.example.asr.domain.StorageCleanup
 import com.example.asr.ui.components.AppBackTopBar
 import com.example.asr.ui.components.AppCard
 import com.example.asr.ui.util.toDateTimeString
@@ -48,10 +54,24 @@ fun BackupScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
         initializer { BackupViewModel(app) }
     })
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val storageText by vm.storageText.collectAsStateWithLifecycle()
+    val cleanup by vm.cleanup.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var backupMode by remember { mutableStateOf(BackupMode.ALL) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Scaffold(topBar = { AppBackTopBar("云备份", onBack = onBack) }) { padding ->
+    LaunchedEffect(message) {
+        message?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.consumeMessage()
+        }
+    }
+
+    Scaffold(
+        topBar = { AppBackTopBar("云备份", onBack = onBack) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -175,6 +195,36 @@ fun BackupScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
             ) {
                 Text(if (ui.restoring) "恢复中…" else "从云端恢复", maxLines = 1)
             }
+
+            Spacer(Modifier.height(8.dp))
+            AppCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("存储空间", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        storageText,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "清理只删除音频文件，转写文稿、薄弱点和复习任务都保留",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = vm::openCleanup,
+                            shape = MaterialTheme.shapes.small,
+                        ) { Text("清理已分析录音") }
+                        OutlinedButton(
+                            onClick = vm::cleanOrphanFiles,
+                            shape = MaterialTheme.shapes.small,
+                        ) { Text("清理孤立文件") }
+                    }
+                }
+            }
         }
     }
 
@@ -191,6 +241,66 @@ fun BackupScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
             },
             dismissButton = {
                 TextButton(onClick = { showRestoreConfirm = false }) { Text("取消") }
+            },
+        )
+    }
+
+    // 清理已分析录音弹窗（勾选 → 直接删除 / 备份到云端后删除）
+    if (cleanup.visible) {
+        AlertDialog(
+            onDismissRequest = vm::dismissCleanup,
+            title = { Text("清理已分析录音") },
+            text = {
+                Column {
+                    cleanup.items.forEach { item ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !cleanup.cleaning) {
+                                    vm.toggleCleanupItem(item.id)
+                                },
+                        ) {
+                            Checkbox(
+                                checked = item.checked,
+                                onCheckedChange = null,
+                                enabled = !cleanup.cleaning,
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(item.title, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Text(
+                                StorageCleanup.mbText(item.bytes),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        StorageCleanup.cleanupTotalText(cleanup.selectedCount, cleanup.selectedBytes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        enabled = !cleanup.cleaning,
+                        onClick = { vm.confirmCleanup(toCloud = false) },
+                    ) { Text(if (cleanup.cleaning) "清理中…" else "直接删除") }
+                    TextButton(
+                        enabled = !cleanup.cleaning,
+                        onClick = { vm.confirmCleanup(toCloud = true) },
+                    ) { Text("备份后删除") }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !cleanup.cleaning,
+                    onClick = vm::dismissCleanup,
+                ) { Text("取消") }
             },
         )
     }

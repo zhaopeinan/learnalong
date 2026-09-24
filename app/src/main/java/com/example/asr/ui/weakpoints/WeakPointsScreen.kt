@@ -42,7 +42,9 @@ import com.example.asr.domain.EbbinghausScheduler
 import com.example.asr.ui.components.AppTopSpace
 import com.example.asr.ui.components.EmptyState
 import com.example.asr.ui.components.MasteryCurve
+import com.example.asr.ui.components.TourPlan
 import com.example.asr.ui.components.WeakPointCard
+import com.example.asr.ui.components.tourTarget
 import com.example.asr.ui.util.toDateString
 import com.example.asr.ui.util.toDateTimeString
 
@@ -112,6 +114,7 @@ fun WeakPointsScreen(onOpenExercise: (Long) -> Unit) {
                     icon = Icons.Default.Star,
                     title = "暂无薄弱点",
                     description = "先在「记录」页录音并完成分析，孩子的薄弱知识点会汇总到这里",
+                    modifier = Modifier.tourTarget(TourPlan.TAG_WP_CARD),
                 )
             } else {
                 LazyColumn(
@@ -134,6 +137,12 @@ fun WeakPointsScreen(onOpenExercise: (Long) -> Unit) {
                                     fadeInSpec = tween(250),
                                     fadeOutSpec = tween(250),
                                     placementSpec = tween(250),
+                                )
+                                // 新手引导高亮目标：第一张薄弱点卡（对应小程序 .wp-card）
+                                .then(
+                                    if (wp.id == weakPoints.first().id) {
+                                        Modifier.tourTarget(TourPlan.TAG_WP_CARD)
+                                    } else Modifier
                                 ),
                             actions = {
                                 OutlinedButton(

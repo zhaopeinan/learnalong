@@ -50,6 +50,8 @@ data class AppSettings(
     val chatVoiceEnabled: Boolean = true, // AI 回复语音播报开关
     /** 分析完成后录音文件处理方式 */
     val audioCleanupMode: String = CLEANUP_ASK,
+    /** 调试模式：开启后记录失败的模型请求（含完整提示词），便于排查 */
+    val debugMode: Boolean = false,
     val tourDoneV1: Boolean = false,      // 新手引导已完成
     val demoSeededV1: Boolean = false,    // 演示数据已写入
 ) {
@@ -113,6 +115,7 @@ class SettingsStore(private val context: Context) {
         val PREFERRED_VOICE_ID = stringPreferencesKey("preferred_voice_id")
         val CHAT_VOICE_ENABLED = booleanPreferencesKey("chat_voice_enabled")
         val AUDIO_CLEANUP_MODE = stringPreferencesKey("audio_cleanup_mode")
+        val DEBUG_MODE = booleanPreferencesKey("debug_mode")
         val TOUR_DONE_V1 = booleanPreferencesKey("tour_done_v1")
         val DEMO_SEEDED_V1 = booleanPreferencesKey("demo_seeded_v1")
     }
@@ -166,6 +169,7 @@ class SettingsStore(private val context: Context) {
                     AppSettings.CLEANUP_DELETE, AppSettings.CLEANUP_BACKUP_DELETE,
                 )
             } ?: AppSettings.CLEANUP_ASK,
+            debugMode = prefs[Keys.DEBUG_MODE] ?: false,
             tourDoneV1 = prefs[Keys.TOUR_DONE_V1] ?: false,
             demoSeededV1 = prefs[Keys.DEMO_SEEDED_V1] ?: false,
         )
@@ -266,6 +270,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setAudioCleanupMode(value: String) = context.dataStore.edit {
         it[Keys.AUDIO_CLEANUP_MODE] = value
+    }
+
+    suspend fun setDebugMode(value: Boolean) = context.dataStore.edit {
+        it[Keys.DEBUG_MODE] = value
     }
 
     suspend fun setTourDoneV1(value: Boolean) = context.dataStore.edit {

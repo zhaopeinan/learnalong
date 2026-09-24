@@ -1,5 +1,6 @@
 package com.example.asr.media
 
+import com.example.asr.data.remote.DebugLog
 import com.example.asr.data.remote.MiniMaxApi
 import com.example.asr.data.remote.MiniMaxResponseParser
 import com.example.asr.data.remote.dto.MiniMaxTtsRequest
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.first
 class SpeechSynthesizer(
     private val miniMaxApi: MiniMaxApi,
     private val settingsStore: SettingsStore,
+    private val debugLog: DebugLog? = null,
 ) {
 
     /** 合成文本，返回 24h 有效的音频 URL */
@@ -36,6 +38,12 @@ class SpeechSynthesizer(
             ).string()
             MiniMaxResponseParser.parseTtsAudioUrl(body)
         } catch (e: Exception) {
+            debugLog?.record(
+                action = "MiniMax 语音合成",
+                model = settings.minimaxModel,
+                prompt = "voice_id：$effectiveVoiceId\ntext：$text",
+                error = e.toUserMessage(),
+            )
             throw Exception(e.toUserMessage())
         }
     }

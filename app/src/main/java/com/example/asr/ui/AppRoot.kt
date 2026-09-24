@@ -78,12 +78,18 @@ import com.example.asr.R
 import com.example.asr.audio.AudioImporter
 import com.example.asr.data.local.entity.ChatMode
 import com.example.asr.data.settings.AppSettings
+import com.example.asr.ui.about.AboutScreen
 import com.example.asr.ui.agreement.AgreementScreen
 import com.example.asr.ui.backup.BackupScreen
 import com.example.asr.ui.chat.ChatScreen
 import com.example.asr.ui.children.ChildrenScreen
+import com.example.asr.ui.components.TourOverlay
+import com.example.asr.ui.components.TourPlan
 import com.example.asr.ui.components.rememberPhotoCapture
+import com.example.asr.ui.components.tourTarget
 import com.example.asr.ui.detail.RecordingDetailScreen
+import com.example.asr.ui.guide.GuideArticleScreen
+import com.example.asr.ui.guide.GuideScreen
 import com.example.asr.ui.kid.KidNavBar
 import com.example.asr.ui.kid.KidProgressScreen
 import com.example.asr.ui.mine.MineScreen
@@ -190,6 +196,11 @@ fun AppRoot() {
         }
     }
 
+    // 新手引导：路由变化时通知控制器（首次进「今日」自动开始；引导中跟随跳转）
+    LaunchedEffect(currentRoute) {
+        app.container.tourController.onRouteShown(currentRoute)
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
@@ -236,14 +247,29 @@ fun AppRoot() {
                     },
                 )
             }
-            composable(Routes.AGREEMENT) {
+            composable(
+                Routes.AGREEMENT,
+                arguments = listOf(
+                    navArgument("gate") {
+                        type = NavType.BoolType
+                        defaultValue = true
+                    },
+                    navArgument("type") {
+                        type = NavType.StringType
+                        defaultValue = "terms"
+                    },
+                ),
+            ) { entry ->
+                val gate = entry.arguments?.getBoolean("gate") ?: true
                 AgreementScreen(
-                    gate = true,
+                    gate = gate,
+                    initialType = entry.arguments?.getString("type") ?: "terms",
                     onAgree = {
                         navController.navigate(Routes.TODAY) {
                             popUpTo(0) { inclusive = true }
                         }
                     },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Routes.TODAY) { TodayScreen() }
@@ -263,6 +289,9 @@ fun AppRoot() {
                     onOpenChildren = { navController.navigate(Routes.CHILDREN) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenBackup = { navController.navigate(Routes.BACKUP) },
+                    onOpenGuide = { navController.navigate(Routes.GUIDE) },
+                    onOpenAgreement = { navController.navigate(Routes.agreementReadonly()) },
+                    onOpenAbout = { navController.navigate(Routes.ABOUT) },
                     onEnterKidMode = {
                         navController.navigate(Routes.KID_PROGRESS) {
                             popUpTo(0) { inclusive = true }
@@ -311,6 +340,41 @@ fun AppRoot() {
             composable(Routes.SETTINGS) {
                 SettingsScreen(onBack = { navController.popBackStack() })
             }
+            composable(Routes.GUIDE) {
+                GuideScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenArticle = { id -> navController.navigate(Routes.guideArticle(id)) },
+                    onRestartTour = {
+                        scope.launch {
+                            app.container.demoSeeder.seedIfEmpty()
+                            app.container.tourController.restart()
+                            navController.navigate(Routes.TODAY) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
+                )
+            }
+            composable(
+                Routes.GUIDE_ARTICLE,
+                arguments = listOf(navArgument("articleId") { type = NavType.StringType }),
+            ) { entry ->
+                GuideArticleScreen(
+                    articleId = entry.arguments?.getString("articleId") ?: "",
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.ABOUT) {
+                AboutScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenTerms = { navController.navigate(Routes.agreementReadonly("terms")) },
+                    onOpenPrivacy = { navController.navigate(Routes.agreementReadonly("privacy")) },
+                )
+            }
             composable(Routes.BACKUP) {
                 BackupScreen(
                     onBack = { navController.popBackStack() },
@@ -343,6 +407,19 @@ fun AppRoot() {
             }
         }
     }
+
+    // 新手引导浮层（挖孔高亮 + 提示卡；完成/跳过写 tourDoneV1）
+    TourOverlay(
+        controller = app.container.tourController,
+        currentRoute = currentRoute,
+        onNavigate = { route ->
+            if (route == Routes.RECORD) {
+                navController.navigate(Routes.RECORD) { launchSingleTop = true }
+            } else {
+                navigateTopLevel(route)
+            }
+        },
+    )
 
     // 中央麦克风钮的快捷动作面板
     if (showPanel) {
@@ -451,7 +528,9 @@ private fun AppBottomBar(
             }
             CenterMicButton(
                 onClick = onCenterClick,
-                modifier = Modifier.align(Alignment.TopCenter),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .tourTarget(TourPlan.TAG_TABBAR_CENTER),
             )
         }
         Spacer(

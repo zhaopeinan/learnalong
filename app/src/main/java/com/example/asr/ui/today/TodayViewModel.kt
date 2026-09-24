@@ -2,6 +2,7 @@ package com.example.asr.ui.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.asr.data.local.DemoSeeder
 import com.example.asr.data.local.entity.ReviewTaskWithWeakPoint
 import com.example.asr.data.repository.TutorRepository
 import com.example.asr.domain.GrowthReport
@@ -15,7 +16,10 @@ import kotlinx.coroutines.launch
 
 /** 任务练习内容状态见 ui.components.TaskContentState */
 
-class TodayViewModel(private val tutorRepository: TutorRepository) : ViewModel() {
+class TodayViewModel(
+    private val tutorRepository: TutorRepository,
+    private val demoSeeder: DemoSeeder? = null,
+) : ViewModel() {
 
     val tasks: StateFlow<List<ReviewTaskWithWeakPoint>> =
         tutorRepository.observeDueTasks(System.currentTimeMillis())
@@ -26,6 +30,8 @@ class TodayViewModel(private val tutorRepository: TutorRepository) : ViewModel()
     val weeklyReport: StateFlow<GrowthReport.WeeklyReport?> = _weeklyReport
 
     init {
+        // 全新安装时先补示例数据，让首屏（含新手引导）有真实内容可看（对齐小程序 today.onShow）
+        viewModelScope.launch { demoSeeder?.seedIfEmpty() }
         refreshWeeklyReport()
     }
 

@@ -63,7 +63,9 @@ import com.example.asr.media.PhotoImporter
 import com.example.asr.ui.components.AppCard
 import com.example.asr.ui.components.AppTopSpace
 import com.example.asr.ui.components.EmptyState
+import com.example.asr.ui.components.TourPlan
 import com.example.asr.ui.components.rememberPhotoCapture
+import com.example.asr.ui.components.tourTarget
 import com.example.asr.ui.util.recordingStatusText
 import com.example.asr.ui.util.toDateTimeString
 import com.example.asr.ui.util.toDurationString
@@ -217,6 +219,7 @@ fun RecordingsScreen(
                     description = "录下一段辅导过程，或导入已有的音频，自动转写并分析孩子的薄弱点",
                     actionLabel = "开始录音",
                     onAction = onRecord,
+                    modifier = Modifier.tourTarget(TourPlan.TAG_REC_CARD),
                 )
             } else {
                 LazyColumn(
@@ -232,6 +235,12 @@ fun RecordingsScreen(
                                     fadeInSpec = tween(250),
                                     fadeOutSpec = tween(250),
                                     placementSpec = tween(250),
+                                )
+                                // 新手引导高亮目标：第一条记录卡（对应小程序 .rec-swipe）
+                                .then(
+                                    if (rec.id == recordings.first().id) {
+                                        Modifier.tourTarget(TourPlan.TAG_REC_CARD)
+                                    } else Modifier
                                 ),
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {

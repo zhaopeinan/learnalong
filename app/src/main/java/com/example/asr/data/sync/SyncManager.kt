@@ -10,6 +10,9 @@ import com.example.asr.data.local.entity.RecordingPhotoEntity
 import com.example.asr.data.local.entity.ReviewTaskEntity
 import com.example.asr.data.local.entity.TranscriptSegmentEntity
 import com.example.asr.data.local.entity.WeakPointEntity
+import com.example.asr.data.local.entity.WorkRecordingEntity
+import com.example.asr.data.local.entity.WorkTodoEntity
+import com.example.asr.data.repository.RecordingRepository
 import com.example.asr.data.settings.SettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -32,6 +35,8 @@ data class BackupFile(
     val reviewTasks: List<ReviewTaskEntity> = emptyList(),
     val masteryHistory: List<MasteryHistoryEntity> = emptyList(),
     val photos: List<RecordingPhotoEntity> = emptyList(),
+    val workRecordings: List<WorkRecordingEntity> = emptyList(),
+    val workTodos: List<WorkTodoEntity> = emptyList(),
 )
 
 data class BackupResult(
@@ -156,6 +161,8 @@ class SyncManager(
             reviewTasks = db.reviewTaskDao().getAll(),
             masteryHistory = db.masteryHistoryDao().getAll(),
             photos = db.recordingPhotoDao().getAll(),
+            workRecordings = db.workRecordingDao().getAll(),
+            workTodos = db.workTodoDao().getAll(),
         )
 
         // 比对云端已有文件，算出增量清单（音频 + 错题照片）
@@ -173,8 +180,12 @@ class SyncManager(
             return result
         }
 
+        // 辅导录音 + 工作端录音的全部音频文件（分段录音取全部分段）
+        val allAudioPaths = data.recordings.flatMap { audioPathsOf(it.filePath, it.segments) } +
+            data.workRecordings.flatMap { audioPathsOf(it.filePath, it.segments) }
+
         val skippedCounter = intArrayOf(0)
-        val audioUploads = collectToUpload(data.recordings.map { it.filePath }, remoteAudio, skippedCounter)
+        val audioUploads = collectToUpload(allAudioPaths, remoteAudio, skippedCounter)
             .map { it to "recordings" }
         val photoUploads = collectToUpload(data.photos.map { it.filePath }, remotePhotos, skippedCounter)
             .map { it to "photos" }
@@ -218,14 +229,23 @@ class SyncManager(
                 db.reviewTaskDao().upsertAll(data.reviewTasks)
                 db.masteryHistoryDao().upsertAll(data.masteryHistory)
                 db.recordingPhotoDao().upsertAll(data.photos)
+                db.workRecordingDao().upsertAll(data.workRecordings)
+                db.workTodoDao().upsertAll(data.workTodos)
             }
 
             var downloaded = 0
             var missing = 0
-            // 音频在 recordings/ 目录，照片在 photos/ 目录
-            val filesToRestore = data.recordings.map { it.filePath to "recordings" } +
-                data.photos.map { it.filePath to "photos" }
-            for ((path, dir) in filesToRestore) {
+            // 音频在 recordings/ 目录，照片在 photos/ 目录；
+            // 音频已被用户主动清理的记录不再从云端拉回，避免刚释放的空间被占回
+            val filesWithDir =
+                data.recordings.filter { !it.audioRemoved }
+                    .flatMap { r -> audioPathsOf(r.filePath, r.segments) }
+                    .map { it to "recordings" } +
+                    data.workRecordings
+                        .flatMap { r -> audioPathsOf(r.filePath, r.segments) }
+                        .map { it to "recordings" } +
+                    data.photos.map { it.filePath to "photos" }
+            for ((path, dir) in filesWithDir) {
                 val target = File(path)
                 if (target.exists()) continue
                 try {
@@ -275,5 +295,12 @@ class SyncManager(
 
     companion object {
         const val ROOT_DIR = "ASRTutor"
+
+        /** 录音涉及的全部音频文件：分段录音返回全部分段，否则仅主文件（辅导录音与工作录音通用） */
+        fun audioPathsOf(filePath: String, segments: String?): List<String> {
+            val decoded = RecordingRepository.decodeSegments(segments)
+            val paths = if (decoded != null && decoded.size > 1) decoded else listOf(filePath)
+            return paths.filter { it.isNotBlank() }
+        }
     }
 }

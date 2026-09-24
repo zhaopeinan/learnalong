@@ -45,17 +45,21 @@ import kotlinx.coroutines.launch
  * 协议页：服务条款 / 隐私政策。
  * gate = true 时为强制确认门（未同意时由闪屏跳入，无返回、底部双按钮，返回键被拦截）；
  * gate = false 时为纯阅读页（显示返回，无底部按钮）。
+ * initialType = "terms" | "privacy" 指定初始文档（关于页两个入口分别直达）。
  */
 @Composable
 fun AgreementScreen(
     gate: Boolean,
+    initialType: String = "terms",
     onAgree: () -> Unit = {},
     onBack: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as AsrApplication
     val scope = rememberCoroutineScope()
-    var docType by remember { mutableStateOf(DocType.TERMS) }
+    var docType by remember {
+        mutableStateOf(if (initialType == "privacy") DocType.PRIVACY else DocType.TERMS)
+    }
 
     // 闸门模式：不允许返回绕过
     BackHandler(enabled = gate) {}

@@ -86,6 +86,10 @@ data class RecordingEntity(
     val polishedText: String? = null,   // 润色后的完整文稿
     val transcribedAt: Long? = null,    // 转写完成时间
     val polishedAt: Long? = null,       // 润色完成时间
+    /** 音频已被用户主动清理（文本保留）；恢复备份时不再拉回音频 */
+    val audioRemoved: Boolean = false,
+    /** 清理音频前是否已上传到云端 */
+    val audioBackedUp: Boolean = false,
 )
 
 @Entity(

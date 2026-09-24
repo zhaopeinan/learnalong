@@ -16,6 +16,7 @@ import com.example.asr.data.local.entity.ReviewTaskEntity
 import com.example.asr.data.local.entity.ReviewTaskWithWeakPoint
 import com.example.asr.data.local.entity.WeakPointEntity
 import com.example.asr.data.remote.AnalysisResultParser
+import com.example.asr.data.remote.DebugLog
 import com.example.asr.data.remote.NetworkClient
 import com.example.asr.data.remote.TaskContentParser
 import com.example.asr.data.remote.dto.ChatMessage
@@ -49,6 +50,7 @@ class TutorRepository(
     private val masteryHistoryDao: MasteryHistoryDao,
     private val recordingPhotoDao: RecordingPhotoDao,
     private val settingsStore: SettingsStore,
+    private val debugLog: DebugLog? = null,
 ) {
 
     fun observeWeakPoints(childId: Long?, subject: String?): Flow<List<WeakPointEntity>> =
@@ -114,6 +116,7 @@ class TutorRepository(
         val settings = settingsStore.settings.first()
         require(settings.apiKey.isNotBlank()) { "请先在设置页填写 SiliconFlow API Key" }
         val grade = childDao.getById(childId)?.grade
+        val userPrompt = TaskContentPrompt.build(subject, grade, knowledgePoint, description)
 
         val raw = try {
             val api = NetworkClient.api(settings.baseUrl)
@@ -123,14 +126,17 @@ class TutorRepository(
                     model = settings.llmModel,
                     messages = listOf(
                         ChatMessage(role = "system", content = TaskContentPrompt.SYSTEM),
-                        ChatMessage(
-                            role = "user",
-                            content = TaskContentPrompt.build(subject, grade, knowledgePoint, description),
-                        ),
+                        ChatMessage(role = "user", content = userPrompt),
                     ),
                 ),
             ).text
         } catch (e: Exception) {
+            debugLog?.record(
+                action = "生成练习题",
+                model = settings.llmModel,
+                prompt = "[system]\n${TaskContentPrompt.SYSTEM}\n\n[user]\n$userPrompt",
+                error = e.toUserMessage(),
+            )
             throw Exception(e.toUserMessage())
         }
 
@@ -188,6 +194,11 @@ class TutorRepository(
         require(settings.apiKey.isNotBlank()) { "请先在设置页填写 SiliconFlow API Key" }
 
         val grade = childDao.getById(recording.childId)?.grade
+        val userPrompt = PolishPrompt.build(
+            recording.subject,
+            grade,
+            TranscriptText.build(segments),
+        )
 
         val polished = try {
             val api = NetworkClient.api(settings.baseUrl)
@@ -197,19 +208,18 @@ class TutorRepository(
                     model = settings.llmModel,
                     messages = listOf(
                         ChatMessage(role = "system", content = PolishPrompt.SYSTEM),
-                        ChatMessage(
-                            role = "user",
-                            content = PolishPrompt.build(
-                                recording.subject,
-                                grade,
-                                TranscriptText.build(segments),
-                            ),
-                        ),
+                        ChatMessage(role = "user", content = userPrompt),
                     ),
                 ),
             )
             response.text.trim()
         } catch (e: Exception) {
+            debugLog?.record(
+                action = "润色文稿",
+                model = settings.llmModel,
+                prompt = "[system]\n${PolishPrompt.SYSTEM}\n\n[user]\n$userPrompt",
+                error = e.toUserMessage(),
+            )
             throw Exception(e.toUserMessage())
         }
         require(polished.isNotBlank()) { "模型返回为空，请重试" }
@@ -246,6 +256,12 @@ class TutorRepository(
 
         val rawTranscript = TranscriptText.build(segments)
         val grade = childDao.getById(recording.childId)?.grade
+        val userPrompt = AnalysisPrompt.build(
+            recording.subject,
+            grade,
+            rawTranscript,
+            recording.polishedText,
+        )
 
         val api = NetworkClient.api(settings.baseUrl)
         val auth = "Bearer ${settings.apiKey}"
@@ -257,20 +273,18 @@ class TutorRepository(
                     model = settings.llmModel,
                     messages = listOf(
                         ChatMessage(role = "system", content = AnalysisPrompt.SYSTEM),
-                        ChatMessage(
-                            role = "user",
-                            content = AnalysisPrompt.build(
-                                recording.subject,
-                                grade,
-                                rawTranscript,
-                                recording.polishedText,
-                            ),
-                        ),
+                        ChatMessage(role = "user", content = userPrompt),
                     ),
                 ),
             )
             AnalysisResultParser.parse(response.text)
         } catch (e: Exception) {
+            debugLog?.record(
+                action = "薄弱点分析",
+                model = settings.llmModel,
+                prompt = "[system]\n${AnalysisPrompt.SYSTEM}\n\n[user]\n$userPrompt",
+                error = e.toUserMessage(),
+            )
             throw Exception(e.toUserMessage())
         }
         if (results.isEmpty()) return emptyList()
@@ -318,6 +332,14 @@ class TutorRepository(
                 ),
             ).text
         } catch (e: Exception) {
+            debugLog?.record(
+                action = "照片薄弱点分析",
+                model = settings.vlmModel,
+                prompt = "[system]\n${PhotoAnalysisPrompt.SYSTEM}\n\n[user]\n" +
+                    PhotoAnalysisPrompt.build(recording.subject, grade, photos.size) +
+                    "\n" + photos.joinToString("\n") { "[image] ${java.io.File(it.filePath).name}" },
+                error = e.toUserMessage(),
+            )
             throw Exception(e.toUserMessage())
         }
 

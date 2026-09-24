@@ -47,6 +47,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.asr.AsrApplication
 import com.example.asr.ui.components.AppBackTopBar
+import com.example.asr.ui.components.TourPlan
+import com.example.asr.ui.components.tourTarget
 import com.example.asr.ui.util.toDurationString
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -250,6 +252,8 @@ fun RecordScreen(onSaved: () -> Unit) {
                     onClick = vm::startRecording,
                     enabled = ui.selectedChildId != null && ui.subject.isNotBlank(),
                     shape = CircleShape,
+                    // 新手引导高亮目标（对应小程序 .stage）
+                    modifier = Modifier.tourTarget(TourPlan.TAG_RECORD_STAGE),
                 ) {
                     Text("开始录音", maxLines = 1)
                 }
