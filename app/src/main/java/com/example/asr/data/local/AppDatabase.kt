@@ -43,7 +43,7 @@ import com.example.asr.data.local.entity.WorkTodoEntity
         WorkRecordingEntity::class,
         WorkTodoEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -229,6 +229,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v8 → v9：chat_sessions 加 systemPrompt（创建时定型的辅导上下文）、chat_messages 加 contextText（照片描述等） */
+        private val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN systemPrompt TEXT")
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN contextText TEXT")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -238,6 +246,7 @@ abstract class AppDatabase : RoomDatabase() {
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                    MIGRATION_8_9,
                 ).build().also { INSTANCE = it }
             }
     }

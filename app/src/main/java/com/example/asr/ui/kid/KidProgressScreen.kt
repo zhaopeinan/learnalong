@@ -67,7 +67,7 @@ import com.example.asr.ui.components.TaskContentState
  */
 @Composable
 fun KidProgressScreen(
-    onAskTutor: () -> Unit,
+    onAskTutor: (weakPointId: Long, childId: Long) -> Unit,
     onExitToParent: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as AsrApplication
@@ -211,7 +211,7 @@ fun KidProgressScreen(
                         voiceEnabled = voiceEnabled,
                         playingKey = playingKey,
                         onSpeak = vm::onSpeak,
-                        onAskTutor = onAskTutor,
+                        onAskTutor = { onAskTutor(monster.weakPoint.id, monster.weakPoint.childId) },
                     )
                 }
             }

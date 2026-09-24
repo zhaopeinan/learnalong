@@ -80,7 +80,11 @@ class WeakPointExerciseViewModel(
 
 /** 薄弱点练习题独立页面：整页展示题目，与分析文案分开 */
 @Composable
-fun WeakPointExerciseScreen(weakPointId: Long, onBack: () -> Unit) {
+fun WeakPointExerciseScreen(
+    weakPointId: Long,
+    onBack: () -> Unit,
+    onAskTutor: (childId: Long) -> Unit,
+) {
     val app = LocalContext.current.applicationContext as AsrApplication
     val vm: WeakPointExerciseViewModel = viewModel(
         key = "exercise_$weakPointId",
@@ -132,8 +136,14 @@ fun WeakPointExerciseScreen(weakPointId: Long, onBack: () -> Unit) {
                 }
             }
             item {
-                Row {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Spacer(Modifier.weight(1f))
+                    // 「问老师」：带当前练习题目进入苏格拉底对话（对应小程序 exercise 页 onAskTutor）
+                    OutlinedButton(
+                        onClick = { weakPoint?.let { onAskTutor(it.childId) } },
+                        enabled = weakPoint != null,
+                        shape = MaterialTheme.shapes.small,
+                    ) { Text("问老师", maxLines = 1) }
                     OutlinedButton(
                         onClick = { vm.generate() },
                         enabled = content !is TaskContentState.Loading,

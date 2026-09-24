@@ -236,9 +236,11 @@ data class ChatSessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val childId: Long,
     val mode: String = ChatMode.FREE,
-    /** weakpoint 模式 = weakPointId，exercise 模式 = reviewTaskId，free 模式为 null */
+    /** weakpoint / exercise 模式 = weakPointId（同小程序 wpId 语义），free 模式为 null */
     val refId: Long? = null,
     val title: String,
+    /** 创建时定型（含孩子姓名/年级/辅导上下文），多轮对话始终携带 */
+    val systemPrompt: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
 )
@@ -262,6 +264,8 @@ data class ChatMessageEntity(
     val text: String,
     /** 孩子发来的照片本地路径（JSON 数组），仅 user 消息有 */
     val imagePaths: String? = null,
+    /** 发给 LLM 的上下文文本（含照片描述等）；null 时用 text */
+    val contextText: String? = null,
     /** assistant 消息的播报音频链接（MiniMax，24h 有效，过期需重新合成） */
     val audioUrl: String? = null,
     val createdAt: Long,

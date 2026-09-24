@@ -4,6 +4,7 @@ import android.app.Application
 import com.example.asr.data.local.AppDatabase
 import com.example.asr.data.remote.NetworkClient
 import com.example.asr.data.repository.ChildRepository
+import com.example.asr.data.repository.ChatRepository
 import com.example.asr.data.repository.RecordingRepository
 import com.example.asr.data.repository.TutorRepository
 import com.example.asr.data.settings.AppSettings
@@ -64,6 +65,15 @@ class AppContainer(context: Application) {
 
     /** MiniMax 语音合成封装（孩子端「读出来」/ AI 播报共用） */
     val speechSynthesizer = SpeechSynthesizer(miniMaxApi, settingsStore)
+
+    /** 苏格拉底辅导对话（问老师） */
+    val chatRepository = ChatRepository(
+        chatDao = db.chatDao(),
+        childDao = db.childDao(),
+        weakPointDao = db.weakPointDao(),
+        settingsStore = settingsStore,
+        speechSynthesizer = speechSynthesizer,
+    )
 
     /** 孩子端星星激励 */
     val kidReward = KidReward(db.kidStarDao())

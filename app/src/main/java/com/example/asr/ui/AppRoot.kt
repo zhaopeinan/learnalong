@@ -76,6 +76,7 @@ import androidx.navigation.navArgument
 import com.example.asr.AsrApplication
 import com.example.asr.R
 import com.example.asr.audio.AudioImporter
+import com.example.asr.data.local.entity.ChatMode
 import com.example.asr.data.settings.AppSettings
 import com.example.asr.ui.agreement.AgreementScreen
 import com.example.asr.ui.backup.BackupScreen
@@ -200,7 +201,11 @@ fun AppRoot() {
                             navController.navigate(Routes.KID_PROGRESS) { launchSingleTop = true }
                         }
                     },
-                    onAsk = { navController.navigate(Routes.CHAT) },
+                    onAsk = {
+                        navController.navigate(
+                            Routes.chat(ChatMode.FREE, childId = appSettings?.kidChildId)
+                        )
+                    },
                     onExitToParent = { exitKidToParent() },
                 )
             } else if (showParentBar) {
@@ -267,15 +272,38 @@ fun AppRoot() {
             }
             composable(Routes.KID_PROGRESS) {
                 KidProgressScreen(
-                    onAskTutor = { navController.navigate(Routes.CHAT) },
+                    onAskTutor = { weakPointId, childId ->
+                        navController.navigate(Routes.chat(ChatMode.WEAKPOINT, childId, weakPointId))
+                    },
                     onExitToParent = { exitKidToParent() },
                 )
             }
             composable(Routes.RECORD) {
                 RecordScreen(onSaved = { navController.popBackStack() })
             }
-            composable(Routes.CHAT) {
-                ChatScreen(onBack = { navController.popBackStack() })
+            composable(
+                Routes.CHAT,
+                arguments = listOf(
+                    navArgument("mode") {
+                        type = NavType.StringType
+                        defaultValue = ChatMode.FREE
+                    },
+                    navArgument("childId") {
+                        type = NavType.LongType
+                        defaultValue = -1L
+                    },
+                    navArgument("refId") {
+                        type = NavType.LongType
+                        defaultValue = -1L
+                    },
+                ),
+            ) { entry ->
+                ChatScreen(
+                    mode = entry.arguments?.getString("mode") ?: ChatMode.FREE,
+                    childId = entry.arguments?.getLong("childId")?.takeIf { it > 0 },
+                    refId = entry.arguments?.getLong("refId")?.takeIf { it > 0 },
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(Routes.CHILDREN) {
                 ChildrenScreen(onBack = { navController.popBackStack() })
@@ -304,9 +332,13 @@ fun AppRoot() {
                 Routes.EXERCISE,
                 arguments = listOf(navArgument("weakPointId") { type = NavType.LongType }),
             ) { entry ->
+                val weakPointId = entry.arguments?.getLong("weakPointId") ?: 0L
                 WeakPointExerciseScreen(
-                    weakPointId = entry.arguments?.getLong("weakPointId") ?: 0L,
+                    weakPointId = weakPointId,
                     onBack = { navController.popBackStack() },
+                    onAskTutor = { childId ->
+                        navController.navigate(Routes.chat(ChatMode.EXERCISE, childId, weakPointId))
+                    },
                 )
             }
         }
@@ -320,7 +352,7 @@ fun AppRoot() {
             onAction = { action ->
                 dismissPanel()
                 when (action) {
-                    PanelAction.CHAT -> navController.navigate(Routes.CHAT)
+                    PanelAction.CHAT -> navController.navigate(Routes.chat(ChatMode.FREE))
                     PanelAction.RECORD -> navController.navigate(Routes.RECORD)
                     PanelAction.CAMERA -> photoCapture.launchCamera()
                     PanelAction.ALBUM -> photoCapture.launchGallery()

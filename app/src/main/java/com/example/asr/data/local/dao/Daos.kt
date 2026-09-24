@@ -306,6 +306,16 @@ interface ChatDao {
     @Query("SELECT * FROM chat_sessions WHERE id = :id")
     suspend fun getSession(id: Long): ChatSessionEntity?
 
+    /** 按 (childId, mode, refId) 找最近更新的会话（进 chat 页复用，没有则新建） */
+    @Query(
+        """
+        SELECT * FROM chat_sessions
+        WHERE childId = :childId AND mode = :mode AND (refId IS :refId OR refId = :refId)
+        ORDER BY updatedAt DESC LIMIT 1
+        """
+    )
+    suspend fun findSession(childId: Long, mode: String, refId: Long?): ChatSessionEntity?
+
     @Query(
         """
         SELECT * FROM chat_sessions
@@ -327,6 +337,19 @@ interface ChatDao {
 
     @Insert
     suspend fun insertMessage(message: ChatMessageEntity): Long
+
+    @Query("SELECT * FROM chat_messages WHERE id = :id")
+    suspend fun getMessage(id: Long): ChatMessageEntity?
+
+    @Query("DELETE FROM chat_messages WHERE id = :id")
+    suspend fun deleteMessage(id: Long)
+
+    @Query("UPDATE chat_messages SET audioUrl = :audioUrl WHERE id = :id")
+    suspend fun updateMessageAudioUrl(id: Long, audioUrl: String)
+
+    /** free 模式首条提问自动命名会话用 */
+    @Query("SELECT COUNT(*) FROM chat_messages WHERE sessionId = :sessionId AND role = 'user'")
+    suspend fun countUserMessages(sessionId: Long): Int
 
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY createdAt ASC, id ASC")
     fun observeMessages(sessionId: Long): Flow<List<ChatMessageEntity>>
