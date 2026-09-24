@@ -14,6 +14,7 @@ object Routes {
     const val BACKUP = "backup"
     const val DETAIL = "detail/{recordingId}"
     const val EXERCISE = "exercise/{weakPointId}"
+    const val KID_PROGRESS = "kid_progress"
 
     fun detail(recordingId: Long) = "detail/$recordingId"
     fun exercise(weakPointId: Long) = "exercise/$weakPointId"

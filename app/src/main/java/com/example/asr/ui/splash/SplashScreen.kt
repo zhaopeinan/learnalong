@@ -42,8 +42,7 @@ fun SplashScreen(onNavigate: (String) -> Unit) {
         val settings = app.container.settingsStore.settings.first()
         val route = when {
             !settings.agreementAgreedV1 -> Routes.AGREEMENT
-            // TODO：孩子端主页后续阶段实现，本阶段先按模式分发到今日页
-            settings.appMode == AppSettings.MODE_KID && settings.kidChildId != null -> Routes.TODAY
+            settings.appMode == AppSettings.MODE_KID && settings.kidChildId != null -> Routes.KID_PROGRESS
             app.container.pendingImport.value != null -> Routes.RECORDINGS
             else -> Routes.TODAY
         }

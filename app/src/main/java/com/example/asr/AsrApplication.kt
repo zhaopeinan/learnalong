@@ -11,6 +11,8 @@ import com.example.asr.data.settings.SettingsStore
 import com.example.asr.data.sync.BackupController
 import com.example.asr.data.sync.SyncManager
 import com.example.asr.data.sync.isOnWifi
+import com.example.asr.domain.KidReward
+import com.example.asr.media.SpeechSynthesizer
 import com.example.asr.worker.DailyReviewWorker
 import com.example.asr.worker.NotificationHelper
 import kotlinx.coroutines.CoroutineScope
@@ -59,6 +61,12 @@ class AppContainer(context: Application) {
 
     /** MiniMax 语音合成 / 家长声音复刻 */
     val miniMaxApi = NetworkClient.minimaxApi(AppSettings.MINIMAX_BASE_URL)
+
+    /** MiniMax 语音合成封装（孩子端「读出来」/ AI 播报共用） */
+    val speechSynthesizer = SpeechSynthesizer(miniMaxApi, settingsStore)
+
+    /** 孩子端星星激励 */
+    val kidReward = KidReward(db.kidStarDao())
 }
 
 class AsrApplication : Application() {

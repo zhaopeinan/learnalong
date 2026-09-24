@@ -76,12 +76,15 @@ import androidx.navigation.navArgument
 import com.example.asr.AsrApplication
 import com.example.asr.R
 import com.example.asr.audio.AudioImporter
+import com.example.asr.data.settings.AppSettings
 import com.example.asr.ui.agreement.AgreementScreen
 import com.example.asr.ui.backup.BackupScreen
 import com.example.asr.ui.chat.ChatScreen
 import com.example.asr.ui.children.ChildrenScreen
 import com.example.asr.ui.components.rememberPhotoCapture
 import com.example.asr.ui.detail.RecordingDetailScreen
+import com.example.asr.ui.kid.KidNavBar
+import com.example.asr.ui.kid.KidProgressScreen
 import com.example.asr.ui.mine.MineScreen
 import com.example.asr.ui.record.RecordScreen
 import com.example.asr.ui.recordings.RecordingsScreen
@@ -115,7 +118,6 @@ fun AppRoot() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val showBottomBar = currentRoute in topLevelDestinations.map { it.route }
 
     val context = LocalContext.current
     val app = context.applicationContext as AsrApplication
@@ -123,6 +125,20 @@ fun AppRoot() {
     val snackbarHostState = remember { SnackbarHostState() }
     var showPanel by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
+
+    // 孩子端模式：底部栏换成 KidNavBar，家长端 tab 与动作面板隐藏
+    val appSettings by app.container.settingsStore.settings
+        .collectAsStateWithLifecycle(initialValue = null)
+    val kidMode = appSettings?.appMode == AppSettings.MODE_KID
+    val showParentBar = !kidMode && currentRoute in topLevelDestinations.map { it.route }
+    val showKidBar = kidMode && currentRoute == Routes.KID_PROGRESS
+
+    /** 退出孩子端（家长锁验证通过）：回家长端今日页并清空回退栈 */
+    fun exitKidToParent() {
+        navController.navigate(Routes.TODAY) {
+            popUpTo(0) { inclusive = true }
+        }
+    }
 
     fun navigateTopLevel(route: String) {
         navController.navigate(route) {
@@ -176,7 +192,18 @@ fun AppRoot() {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            if (showBottomBar) {
+            if (showKidBar) {
+                KidNavBar(
+                    currentRoute = currentRoute,
+                    onProgress = {
+                        if (currentRoute != Routes.KID_PROGRESS) {
+                            navController.navigate(Routes.KID_PROGRESS) { launchSingleTop = true }
+                        }
+                    },
+                    onAsk = { navController.navigate(Routes.CHAT) },
+                    onExitToParent = { exitKidToParent() },
+                )
+            } else if (showParentBar) {
                 AppBottomBar(
                     currentRoute = currentRoute,
                     onTabSelected = { navigateTopLevel(it.route) },
@@ -231,6 +258,17 @@ fun AppRoot() {
                     onOpenChildren = { navController.navigate(Routes.CHILDREN) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenBackup = { navController.navigate(Routes.BACKUP) },
+                    onEnterKidMode = {
+                        navController.navigate(Routes.KID_PROGRESS) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(Routes.KID_PROGRESS) {
+                KidProgressScreen(
+                    onAskTutor = { navController.navigate(Routes.CHAT) },
+                    onExitToParent = { exitKidToParent() },
                 )
             }
             composable(Routes.RECORD) {
