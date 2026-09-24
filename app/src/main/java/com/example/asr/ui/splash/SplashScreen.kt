@@ -31,7 +31,7 @@ import com.example.asr.ui.Routes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 
-/** 闪屏页：品牌展示约 1.6 秒后按优先级跳转（协议闸门 → 孩子端 → 待导入 → 今日） */
+/** 闪屏页：品牌展示约 1.6 秒后按优先级跳转（协议闸门 → 孩子端 → 工作端 → 待导入 → 今日） */
 @Composable
 fun SplashScreen(onNavigate: (String) -> Unit) {
     val context = LocalContext.current
@@ -43,6 +43,7 @@ fun SplashScreen(onNavigate: (String) -> Unit) {
         val route = when {
             !settings.agreementAgreedV1 -> Routes.agreementGate()
             settings.appMode == AppSettings.MODE_KID && settings.kidChildId != null -> Routes.KID_PROGRESS
+            settings.appMode == AppSettings.MODE_WORK -> Routes.WORK_HOME
             app.container.pendingImport.value != null -> Routes.RECORDINGS
             else -> Routes.TODAY
         }

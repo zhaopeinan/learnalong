@@ -22,10 +22,16 @@ object Routes {
     const val DETAIL = "detail/{recordingId}"
     const val EXERCISE = "exercise/{weakPointId}"
     const val KID_PROGRESS = "kid_progress"
+    /** 工作端首页（记录列表 / 待办清单两视图，页内切换） */
+    const val WORK_HOME = "work_home"
+    const val WORK_RECORD = "work_record"
+    /** 工作端详情：auto=true 时（录音页保存后跳入）自动开始转写并分析 */
+    const val WORK_DETAIL = "work_detail/{recordingId}?auto={auto}"
 
     fun detail(recordingId: Long) = "detail/$recordingId"
     fun exercise(weakPointId: Long) = "exercise/$weakPointId"
     fun guideArticle(articleId: String) = "guide_article/$articleId"
+    fun workDetail(recordingId: Long, auto: Boolean = false) = "work_detail/$recordingId?auto=$auto"
 
     /** 协议确认门（首次启动） */
     fun agreementGate() = "agreement?gate=true"

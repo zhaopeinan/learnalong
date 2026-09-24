@@ -66,6 +66,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -100,6 +103,10 @@ import com.example.asr.ui.splash.SplashScreen
 import com.example.asr.ui.today.TodayScreen
 import com.example.asr.ui.weakpoints.WeakPointExerciseScreen
 import com.example.asr.ui.weakpoints.WeakPointsScreen
+import com.example.asr.ui.work.WorkDetailScreen
+import com.example.asr.ui.work.WorkHomeScreen
+import com.example.asr.ui.work.WorkHomeViewModel
+import com.example.asr.ui.work.WorkRecordScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -137,13 +144,31 @@ fun AppRoot() {
     val appSettings by app.container.settingsStore.settings
         .collectAsStateWithLifecycle(initialValue = null)
     val kidMode = appSettings?.appMode == AppSettings.MODE_KID
-    val showParentBar = !kidMode && currentRoute in topLevelDestinations.map { it.route }
+    // 工作端模式：底部栏换成工作端自有导航（记录 / 中央大录音钮 / 待办）
+    val workMode = appSettings?.appMode == AppSettings.MODE_WORK
+    val showParentBar = !kidMode && !workMode && currentRoute in topLevelDestinations.map { it.route }
     val showKidBar = kidMode && currentRoute == Routes.KID_PROGRESS
+    val showWorkBar = workMode && currentRoute == Routes.WORK_HOME
+
+    // 工作端首页 ViewModel：页面与工作端底部导航共享（切换记录/待办视图 + 待办数角标）
+    val workHomeVm: WorkHomeViewModel = viewModel(factory = viewModelFactory {
+        initializer { WorkHomeViewModel(app.container.workRepository) }
+    })
 
     /** 退出孩子端（家长锁验证通过）：回家长端今日页并清空回退栈 */
     fun exitKidToParent() {
         navController.navigate(Routes.TODAY) {
             popUpTo(0) { inclusive = true }
+        }
+    }
+
+    /** 退出工作端（对齐小程序 work home 左上角返回）：回家长端「我的」并清空回退栈 */
+    fun exitWorkToParent() {
+        scope.launch {
+            app.container.settingsStore.setAppMode(AppSettings.MODE_PARENT)
+            navController.navigate(Routes.MINE) {
+                popUpTo(0) { inclusive = true }
+            }
         }
     }
 
@@ -192,7 +217,10 @@ fun AppRoot() {
     LaunchedEffect(pendingOpenRecord) {
         if (pendingOpenRecord) {
             app.container.pendingOpenRecord.value = false
-            navController.navigate(Routes.RECORD) { launchSingleTop = true }
+            // 录音通知点击：按当前模式回家长端/工作端录音页
+            navController.navigate(if (workMode) Routes.WORK_RECORD else Routes.RECORD) {
+                launchSingleTop = true
+            }
         }
     }
 
@@ -218,6 +246,11 @@ fun AppRoot() {
                         )
                     },
                     onExitToParent = { exitKidToParent() },
+                )
+            } else if (showWorkBar) {
+                WorkNavBar(
+                    vm = workHomeVm,
+                    onRecord = { navController.navigate(Routes.WORK_RECORD) },
                 )
             } else if (showParentBar) {
                 AppBottomBar(
@@ -297,6 +330,45 @@ fun AppRoot() {
                             popUpTo(0) { inclusive = true }
                         }
                     },
+                    onEnterWorkMode = {
+                        navController.navigate(Routes.WORK_HOME) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(Routes.WORK_HOME) {
+                WorkHomeScreen(
+                    vm = workHomeVm,
+                    onOpenDetail = { id -> navController.navigate(Routes.workDetail(id)) },
+                    onExitToParent = { exitWorkToParent() },
+                )
+            }
+            composable(Routes.WORK_RECORD) {
+                WorkRecordScreen(
+                    onSaved = { id ->
+                        // 对齐小程序 redirectTo：保存后替换录音页进详情，自动开始转写分析
+                        navController.navigate(Routes.workDetail(id, auto = true)) {
+                            popUpTo(Routes.WORK_RECORD) { inclusive = true }
+                        }
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                Routes.WORK_DETAIL,
+                arguments = listOf(
+                    navArgument("recordingId") { type = NavType.LongType },
+                    navArgument("auto") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                    },
+                ),
+            ) { entry ->
+                WorkDetailScreen(
+                    recordingId = entry.arguments?.getLong("recordingId") ?: 0L,
+                    autoStart = entry.arguments?.getBoolean("auto") ?: false,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Routes.KID_PROGRESS) {
@@ -538,6 +610,95 @@ private fun AppBottomBar(
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
                 .navigationBarsPadding(),
+        )
+    }
+}
+
+/**
+ * 工作端底部导航（对齐小程序 work home 的 workbar）：
+ * 左「记录」/ 中央凸起录音钮 / 右「待办」（带未完成数），复用家长端中央麦克风钮样式。
+ */
+@Composable
+private fun WorkNavBar(
+    vm: WorkHomeViewModel,
+    onRecord: () -> Unit,
+) {
+    val view by vm.view.collectAsStateWithLifecycle()
+    val pendingCount by vm.pendingCount.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth().height(82.dp)) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .background(MaterialTheme.colorScheme.surface),
+            ) {
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
+                Row(modifier = Modifier.fillMaxSize()) {
+                    WorkNavItem(
+                        emoji = "🗂️",
+                        label = "记录",
+                        selected = view == WorkHomeViewModel.VIEW_LIST,
+                        onClick = { vm.switchView(WorkHomeViewModel.VIEW_LIST) },
+                    )
+                    // 中央占位：与凸起麦克风钮等宽
+                    Spacer(Modifier.width(76.dp))
+                    WorkNavItem(
+                        emoji = "✅",
+                        label = if (pendingCount > 0) "待办 $pendingCount" else "待办",
+                        selected = view == WorkHomeViewModel.VIEW_TODOS,
+                        onClick = { vm.switchView(WorkHomeViewModel.VIEW_TODOS) },
+                    )
+                }
+            }
+            CenterMicButton(
+                onClick = onRecord,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
+        Spacer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+                .navigationBarsPadding(),
+        )
+    }
+}
+
+@Composable
+private fun RowScope.WorkNavItem(
+    emoji: String,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val haptic = LocalHapticFeedback.current
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight()
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                onClick()
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(8.dp))
+        Text(emoji, fontSize = 20.sp)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outline,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }

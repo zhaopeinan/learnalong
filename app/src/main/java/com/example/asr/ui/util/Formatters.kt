@@ -2,6 +2,7 @@ package com.example.asr.ui.util
 
 import com.example.asr.data.local.entity.RecordingStatus
 import com.example.asr.data.local.entity.SpeakerRole
+import com.example.asr.data.local.entity.WorkStatus
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -31,4 +32,15 @@ fun speakerRoleText(role: String): String = when (role) {
     SpeakerRole.PARENT -> "家长"
     SpeakerRole.CHILD -> "孩子"
     else -> "未标注"
+}
+
+/** 工作端状态文案（对应小程序 format.ts recordingStatusText，含 ANALYZING） */
+fun workStatusText(status: String): String = when (status) {
+    WorkStatus.RECORDED -> "已录"
+    WorkStatus.TRANSCRIBING -> "转写中"
+    WorkStatus.TRANSCRIBED -> "已转写"
+    WorkStatus.ANALYZING -> "分析中"
+    WorkStatus.ANALYZED -> "已分析"
+    WorkStatus.FAILED -> "失败"
+    else -> status
 }

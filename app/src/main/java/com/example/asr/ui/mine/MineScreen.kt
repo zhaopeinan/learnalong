@@ -59,6 +59,7 @@ fun MineScreen(
     onOpenAgreement: () -> Unit,
     onOpenAbout: () -> Unit,
     onEnterKidMode: () -> Unit,
+    onEnterWorkMode: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as AsrApplication
     val scope = rememberCoroutineScope()
@@ -101,6 +102,21 @@ fun MineScreen(
                 .padding(padding)
                 .padding(16.dp),
         ) {
+            // 工作端入口（对齐小程序 mine「工作」分组：navigateTo 工作端首页）
+            AppCard(modifier = Modifier.fillMaxWidth()) {
+                MenuItem(
+                    title = "工作端",
+                    subtitle = "会议 / 工作谈话 / 通话录音 → 纪要与待办",
+                    icon = ImageVector.vectorResource(R.drawable.ic_menu_work),
+                    onClick = {
+                        scope.launch {
+                            app.container.settingsStore.setAppMode(AppSettings.MODE_WORK)
+                            onEnterWorkMode()
+                        }
+                    },
+                )
+            }
+            Spacer(Modifier.height(16.dp))
             AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     MenuItem(

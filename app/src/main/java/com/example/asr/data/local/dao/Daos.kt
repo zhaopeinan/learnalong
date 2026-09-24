@@ -401,6 +401,9 @@ interface WorkRecordingDao {
     @Query("SELECT * FROM work_recordings WHERE id = :id")
     suspend fun getById(id: Long): WorkRecordingEntity?
 
+    @Query("SELECT * FROM work_recordings WHERE id = :id")
+    fun observeById(id: Long): Flow<WorkRecordingEntity?>
+
     @Query("SELECT * FROM work_recordings ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<WorkRecordingEntity>>
 
@@ -425,6 +428,10 @@ interface WorkTodoDao {
 
     @Query("DELETE FROM work_todos WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    /** 重新分析时全量替换待办（对应小程序 analyzeWorkRecording 的清旧逻辑） */
+    @Query("DELETE FROM work_todos WHERE workRecordingId = :recordingId")
+    suspend fun deleteByRecording(recordingId: Long)
 
     @Query(
         """

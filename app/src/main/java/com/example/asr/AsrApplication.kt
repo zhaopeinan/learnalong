@@ -10,6 +10,7 @@ import com.example.asr.data.repository.ChildRepository
 import com.example.asr.data.repository.ChatRepository
 import com.example.asr.data.repository.RecordingRepository
 import com.example.asr.data.repository.TutorRepository
+import com.example.asr.data.repository.WorkRepository
 import com.example.asr.data.settings.AppSettings
 import com.example.asr.data.settings.SettingsStore
 import com.example.asr.data.sync.BackupController
@@ -49,6 +50,9 @@ class AppContainer(context: Application) {
         settingsStore = settingsStore,
         debugLog = debugLog,
     )
+
+    /** 工作端：会议/谈话/通话录音 → 转写 → AI 纪要与待办 */
+    val workRepository = WorkRepository(db.workRecordingDao(), db.workTodoDao(), settingsStore, debugLog)
 
     /** 坚果云 WebDAV 备份/恢复 */
     val syncManager = SyncManager(context, db, settingsStore)
