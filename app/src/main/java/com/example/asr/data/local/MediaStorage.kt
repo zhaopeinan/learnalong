@@ -55,6 +55,13 @@ class MediaStorage(
             .sortedByDescending { it.bytes }
     }
 
+    /** 单条录音的音频占用字节数（对应小程序 tutor.ts recordingAudioBytes） */
+    suspend fun recordingAudioBytes(recordingId: Long): Long = withContext(Dispatchers.IO) {
+        val rec = recordingDao.getById(recordingId) ?: return@withContext 0L
+        if (rec.filePath.isBlank() || rec.audioRemoved) return@withContext 0L
+        audioFilesOf(rec.filePath, rec.segments).sumOf { fileSizeOf(it) }
+    }
+
     /**
      * 删除录音的音频文件释放空间（文本内容保留）。
      * uploadToCloud=true 时先上传到坚果云 recordings/ 目录（要求已配置 WebDAV）。

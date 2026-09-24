@@ -1,8 +1,11 @@
 package com.example.asr.ui.detail
 
 import android.media.MediaPlayer
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.asr.audio.RecordingService
+import com.example.asr.data.local.MediaStorage
 import com.example.asr.data.local.entity.RecordingEntity
 import com.example.asr.data.local.entity.RecordingPhotoEntity
 import com.example.asr.data.local.entity.RecordingStatus
@@ -10,11 +13,15 @@ import com.example.asr.data.local.entity.TranscriptSegmentEntity
 import com.example.asr.data.local.entity.WeakPointEntity
 import com.example.asr.data.repository.RecordingRepository
 import com.example.asr.data.repository.TutorRepository
+import com.example.asr.data.settings.AppSettings
+import com.example.asr.data.settings.SettingsStore
+import com.example.asr.domain.StorageCleanup
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -27,14 +34,26 @@ data class DetailUiState(
     /** 待确认的候选薄弱点（含查重结果）；null 表示无待确认分析 */
     val pendingAnalysis: List<TutorRepository.AnalysisCandidate>? = null,
     val playingSegmentId: Long? = null,
+    val pausedSegmentId: Long? = null,
+    /** 分析完成后的音频清理询问（ask 模式）：含文件大小与 WebDAV 可用性 */
+    val cleanupPrompt: CleanupPrompt? = null,
     val error: String? = null,
     val notice: String? = null,
+)
+
+/** 音频清理询问弹窗数据（对应小程序 maybeCleanupAudio 的 ActionSheet） */
+data class CleanupPrompt(
+    val bytes: Long,
+    /** 已配置坚果云 WebDAV，可提供「备份到云端后删除」选项 */
+    val webdavOk: Boolean,
 )
 
 class RecordingDetailViewModel(
     private val recordingId: Long,
     private val recordingRepository: RecordingRepository,
     private val tutorRepository: TutorRepository,
+    private val mediaStorage: MediaStorage,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(DetailUiState())
@@ -55,6 +74,9 @@ class RecordingDetailViewModel(
 
     private var player: MediaPlayer? = null
     private var stopJob: Job? = null
+    /** 暂停/继续用的墙钟余量（毫秒） */
+    private var remainingMs: Long = 0L
+    private var endAtMs: Long = 0L
 
     init {
         viewModelScope.launch {
@@ -86,7 +108,7 @@ class RecordingDetailViewModel(
         }
     }
 
-    /** 用户确认后入库：新增 + 合并重复项 */
+    /** 用户确认后入库：新增 + 合并重复项；随后按清理模式处理录音文件 */
     fun confirmAnalysis() = runAction {
         val candidates = _ui.value.pendingAnalysis ?: return@runAction
         val result = tutorRepository.applyAnalysis(recordingId, candidates)
@@ -99,9 +121,48 @@ class RecordingDetailViewModel(
                 },
             )
         }
+        maybeCleanupAudio()
     }
 
     fun dismissAnalysis() = _ui.update { it.copy(pendingAnalysis = null) }
+
+    /** 分析完成后按设置处理录音文件（对应小程序 maybeCleanupAudio：释放存储空间，文本保留） */
+    private suspend fun maybeCleanupAudio() {
+        val bytes = mediaStorage.recordingAudioBytes(recordingId)
+        if (bytes <= 0) return
+        val s = settingsStore.settings.first()
+        val webdavOk = s.webdavUser.isNotBlank() && s.webdavPassword.isNotBlank()
+        when (s.audioCleanupMode) {
+            AppSettings.CLEANUP_KEEP -> return
+            AppSettings.CLEANUP_DELETE -> removeAudio(toCloud = false)
+            AppSettings.CLEANUP_BACKUP_DELETE ->
+                if (webdavOk) removeAudio(toCloud = true) else askCleanup(bytes, webdavOk)
+            // ask（含 backup_delete 但未配置坚果云的兜底）
+            else -> askCleanup(bytes, webdavOk)
+        }
+    }
+
+    private fun askCleanup(bytes: Long, webdavOk: Boolean) {
+        _ui.update { it.copy(cleanupPrompt = CleanupPrompt(bytes, webdavOk)) }
+    }
+
+    fun dismissCleanupPrompt() = _ui.update { it.copy(cleanupPrompt = null) }
+
+    /** 清理询问弹窗的选择：删除 / 备份到云端后删除 */
+    fun confirmCleanupAudio(toCloud: Boolean) {
+        _ui.update { it.copy(cleanupPrompt = null) }
+        runAction { removeAudio(toCloud) }
+    }
+
+    private suspend fun removeAudio(toCloud: Boolean) {
+        val freed = mediaStorage.removeRecordingAudio(recordingId, toCloud)
+        if (freed > 0) {
+            _ui.update {
+                val msg = "已删除录音文件，释放 ${StorageCleanup.mbText(freed)}"
+                it.copy(notice = if (it.notice != null) "${it.notice}；$msg" else msg)
+            }
+        }
+    }
 
     /** 附加已导入的错题照片文件（导入由 PhotoCapture 组件完成） */
     fun addPhotoFiles(files: List<java.io.File>) = runAction {
@@ -154,19 +215,69 @@ class RecordingDetailViewModel(
         }
     }
 
-    /** 播放对应片段：seek 到 start，播放到 end 自动停 */
+    /**
+     * 播放/暂停切换（对齐小程序 onPlaySegment）：正在播该段 → 暂停；已暂停该段 → 继续；
+     * 否则从头播放该段。
+     */
+    fun togglePlaySegment(segment: TranscriptSegmentEntity) {
+        when {
+            _ui.value.playingSegmentId == segment.id && player != null -> {
+                stopJob?.cancel()
+                stopJob = null
+                remainingMs = (endAtMs - SystemClock.elapsedRealtime()).coerceAtLeast(0)
+                try {
+                    player?.pause()
+                } catch (_: Exception) {}
+                _ui.update { it.copy(playingSegmentId = null, pausedSegmentId = segment.id) }
+            }
+            _ui.value.pausedSegmentId == segment.id && player != null -> {
+                try {
+                    player?.start()
+                } catch (_: Exception) {}
+                endAtMs = SystemClock.elapsedRealtime() + remainingMs
+                stopJob = viewModelScope.launch {
+                    delay(remainingMs)
+                    stopPlayback()
+                }
+                _ui.update { it.copy(playingSegmentId = segment.id, pausedSegmentId = null) }
+            }
+            else -> playSegment(segment)
+        }
+    }
+
+    /**
+     * 播放对应片段：seek 到 start，播放到 end 自动停。
+     * 分段录音（>10 分钟自动续录产生）按全局时间轴定位所在分段文件，
+     * 换算段内偏移（对齐小程序 playSegment）。
+     */
     fun playSegment(segment: TranscriptSegmentEntity) {
-        val path = _ui.value.recording?.filePath ?: return
+        val rec = _ui.value.recording ?: return
+        if (rec.filePath.isBlank() || rec.audioRemoved) return
         stopPlayback()
         try {
+            val decoded = RecordingRepository.decodeSegments(rec.segments)
+            val files = if (decoded != null && decoded.size > 1) decoded else listOf(rec.filePath)
+            val fileIdx = minOf(
+                files.size - 1,
+                (segment.startSec / RecordingService.SEGMENT_DURATION_SEC).toInt(),
+            )
+            val offsetInFileSec =
+                (segment.startSec - fileIdx * RecordingService.SEGMENT_DURATION_SEC).coerceAtLeast(0f)
             val p = MediaPlayer()
-            p.setDataSource(path)
+            p.setDataSource(files[fileIdx])
+            p.setOnCompletionListener { stopPlayback() }
+            p.setOnErrorListener { _, _, _ ->
+                stopPlayback()
+                true
+            }
             p.prepare()
-            p.seekTo((segment.startSec * 1000).toInt())
+            p.seekTo((offsetInFileSec * 1000).toInt())
             p.start()
             player = p
-            _ui.update { it.copy(playingSegmentId = segment.id) }
+            _ui.update { it.copy(playingSegmentId = segment.id, pausedSegmentId = null) }
             val playMillis = ((segment.endSec - segment.startSec).coerceAtLeast(0.5f) * 1000).toLong()
+            remainingMs = playMillis
+            endAtMs = SystemClock.elapsedRealtime() + playMillis
             stopJob = viewModelScope.launch {
                 delay(playMillis)
                 stopPlayback()
@@ -184,7 +295,7 @@ class RecordingDetailViewModel(
         } catch (_: Exception) {}
         player?.release()
         player = null
-        _ui.update { it.copy(playingSegmentId = null) }
+        _ui.update { it.copy(playingSegmentId = null, pausedSegmentId = null) }
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }
@@ -192,7 +303,9 @@ class RecordingDetailViewModel(
     fun clearNotice() = _ui.update { it.copy(notice = null) }
 
     fun canTranscribe(): Boolean {
-        val status = _ui.value.recording?.status
+        val rec = _ui.value.recording ?: return false
+        if (rec.audioRemoved) return false
+        val status = rec.status
         return status == RecordingStatus.RECORDED || status == RecordingStatus.FAILED ||
             status == RecordingStatus.TRANSCRIBED || status == RecordingStatus.ANALYZED
     }

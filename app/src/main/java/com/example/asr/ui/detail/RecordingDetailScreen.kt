@@ -61,6 +61,7 @@ import com.example.asr.data.local.entity.RecordingPhotoEntity
 import com.example.asr.data.local.entity.RecordingStatus
 import com.example.asr.data.local.entity.SpeakerRole
 import com.example.asr.data.local.entity.TranscriptSegmentEntity
+import com.example.asr.domain.StorageCleanup
 import com.example.asr.domain.TranscriptText
 import com.example.asr.ui.components.AppBackTopBar
 import com.example.asr.ui.components.AppCard
@@ -82,6 +83,8 @@ fun RecordingDetailScreen(recordingId: Long, onBack: () -> Unit) {
                 recordingId,
                 app.container.recordingRepository,
                 app.container.tutorRepository,
+                app.container.mediaStorage,
+                app.container.settingsStore,
             )
         }
     })
@@ -154,8 +157,18 @@ fun RecordingDetailScreen(recordingId: Long, onBack: () -> Unit) {
                         )
                     }
                     Spacer(Modifier.height(12.dp))
-                    // 纯照片记录（拍错题）没有音频，隐藏转写/润色/录音分析按钮
-                    if (rec.filePath.isNotBlank()) {
+                    // 纯照片记录（拍错题）或已清理音频的记录没有可播放音频，隐藏转写/润色/录音分析按钮
+                    val hasAudio = rec.filePath.isNotBlank() && !rec.audioRemoved
+                    if (rec.audioRemoved) {
+                        Text(
+                            "录音文件已删除以释放空间" +
+                                (if (rec.audioBackedUp) "（已备份至云端）" else "") +
+                                "，仅保留文本内容",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (hasAudio) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedButton(
                                 onClick = vm::transcribe,
@@ -205,7 +218,7 @@ fun RecordingDetailScreen(recordingId: Long, onBack: () -> Unit) {
                             shape = MaterialTheme.shapes.small,
                         ) { Text("分析照片薄弱点", maxLines = 1) }
                     }
-                    if (segments.isEmpty() && rec.filePath.isNotBlank()) {
+                    if (segments.isEmpty() && hasAudio) {
                         Text(
                             "需先完成转写，才能润色和分析薄弱点",
                             style = MaterialTheme.typography.bodySmall,
@@ -261,7 +274,9 @@ fun RecordingDetailScreen(recordingId: Long, onBack: () -> Unit) {
                 } else {
                     item {
                         Text(
-                            if (ui.recording?.filePath?.isBlank() == true) {
+                            if (ui.recording?.audioRemoved == true) {
+                                "录音文件已删除，仅保留文本内容"
+                            } else if (ui.recording?.filePath?.isBlank() == true) {
                                 "纯照片记录：点上方「分析照片薄弱点」开始分析"
                             } else {
                                 "暂无转写内容，点击「开始转写」上传识别"
@@ -271,11 +286,16 @@ fun RecordingDetailScreen(recordingId: Long, onBack: () -> Unit) {
                     }
                 }
             } else {
+                // 音频已清理的记录只保留文本，不提供片段播放（对齐小程序 hasAudio 控制）
+                val rec = ui.recording
+                val hasAudio = rec != null && rec.filePath.isNotBlank() && !rec.audioRemoved
                 items(segments, key = { it.id }) { seg ->
                     SegmentItem(
                         segment = seg,
                         playing = ui.playingSegmentId == seg.id,
-                        onPlay = { vm.playSegment(seg) },
+                        paused = ui.pausedSegmentId == seg.id,
+                        canPlay = hasAudio,
+                        onPlay = { vm.togglePlaySegment(seg) },
                         onAssignRole = { role -> vm.assignRole(seg.speakerLabel, role) },
                         modifier = Modifier.animateItem(
                             fadeInSpec = tween(250),
@@ -344,6 +364,35 @@ fun RecordingDetailScreen(recordingId: Long, onBack: () -> Unit) {
             },
             dismissButton = {
                 TextButton(onClick = vm::dismissAnalysis) { Text("取消") }
+            },
+        )
+    }
+
+    // 分析完成后的音频清理询问（audioCleanupMode=ask；对应小程序 maybeCleanupAudio 的 ActionSheet）
+    ui.cleanupPrompt?.let { prompt ->
+        AlertDialog(
+            onDismissRequest = vm::dismissCleanupPrompt,
+            title = { Text("清理录音文件？") },
+            text = {
+                Text(
+                    "录音文件（${StorageCleanup.mbText(prompt.bytes)}）仅用于回放与重新转写，" +
+                        "删除不影响已提取的文本和薄弱点",
+                )
+            },
+            confirmButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = { vm.confirmCleanupAudio(toCloud = false) }) {
+                        Text("删除录音文件")
+                    }
+                    if (prompt.webdavOk) {
+                        TextButton(onClick = { vm.confirmCleanupAudio(toCloud = true) }) {
+                            Text("备份到云端后删除")
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::dismissCleanupPrompt) { Text("保留") }
             },
         )
     }
@@ -450,6 +499,8 @@ private fun PhotoThumbnail(photo: RecordingPhotoEntity, onClick: () -> Unit) {
 private fun SegmentItem(
     segment: TranscriptSegmentEntity,
     playing: Boolean,
+    paused: Boolean,
+    canPlay: Boolean,
     onPlay: () -> Unit,
     onAssignRole: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -508,11 +559,18 @@ private fun SegmentItem(
                         }
                     }
                 }
-                OutlinedButton(
-                    onClick = onPlay,
-                    modifier = Modifier.padding(start = 8.dp),
-                    shape = MaterialTheme.shapes.small,
-                ) { Text(if (playing) "播放中" else "播放", maxLines = 1) }
+                if (canPlay) {
+                    OutlinedButton(
+                        onClick = onPlay,
+                        modifier = Modifier.padding(start = 8.dp),
+                        shape = MaterialTheme.shapes.small,
+                    ) {
+                        Text(
+                            if (playing) "暂停" else if (paused) "继续" else "播放",
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(4.dp))
             Text(segment.text, color = labelColor)
