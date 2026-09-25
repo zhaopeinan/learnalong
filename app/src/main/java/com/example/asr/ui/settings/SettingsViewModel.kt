@@ -27,6 +27,7 @@ import com.example.asr.data.sync.WebDavClient
 import com.example.asr.domain.ParentLock
 import com.example.asr.domain.VoiceCatalog
 import com.example.asr.media.TtsPlayer
+import com.example.asr.media.TtsState
 import com.example.asr.worker.DailyReviewWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -216,7 +217,11 @@ class SettingsViewModel(private val application: Application) : ViewModel() {
             try {
                 val url = synthesizeWith(s.minimaxApiKey, s.minimaxModel, voiceId, VoiceCatalog.PREVIEW_TEXT)
                 _previewingId.value = ""
-                val player = previewPlayer ?: TtsPlayer().also { previewPlayer = it }
+                val player = previewPlayer ?: TtsPlayer { state ->
+                    if (state == TtsState.ERROR) {
+                        _toast.value = "试听播放失败：${previewPlayer?.lastError ?: "未知原因"}"
+                    }
+                }.also { previewPlayer = it }
                 player.play(url)
             } catch (e: Exception) {
                 _previewingId.value = ""

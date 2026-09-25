@@ -737,7 +737,10 @@ private fun RowScope.WorkNavItem(
         modifier = Modifier
             .weight(1f)
             .fillMaxHeight()
-            .clickable {
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {
                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                 onClick()
             },
@@ -769,7 +772,10 @@ private fun RowScope.TabItem(
         modifier = Modifier
             .weight(1f)
             .fillMaxHeight()
-            .clickable {
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {
                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                 onClick()
             },

@@ -12,6 +12,7 @@ import com.example.asr.data.remote.toUserMessage
 import com.example.asr.data.settings.AppSettings
 import com.example.asr.domain.VoiceCatalog
 import com.example.asr.media.TtsPlayer
+import com.example.asr.media.TtsState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -90,7 +91,11 @@ class ChildrenViewModel(application: Application) : ViewModel() {
                     MiniMaxResponseParser.parseTtsAudioUrl(body)
                 }
                 _previewingId.value = ""
-                val player = previewPlayer ?: TtsPlayer().also { previewPlayer = it }
+                val player = previewPlayer ?: TtsPlayer { state ->
+                    if (state == TtsState.ERROR) {
+                        _toast.value = "试听播放失败：${previewPlayer?.lastError ?: "未知原因"}"
+                    }
+                }.also { previewPlayer = it }
                 player.play(url)
             } catch (e: Exception) {
                 _previewingId.value = ""
