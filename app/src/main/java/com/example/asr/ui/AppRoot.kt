@@ -1,7 +1,10 @@
 package com.example.asr.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
+import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -187,6 +190,21 @@ fun AppRoot() {
             }
             launchSingleTop = true
             restoreState = true
+        }
+    }
+
+    // 顶层页返回手势守卫：targetSdk 36+ 强制开启预测式返回，侧滑一点就退出容易误触，
+    // 改为第一次滑只提示、2 秒内再滑才真正退出（对齐主流 App 的「再按一次退出」）
+    var lastExitPromptAt by remember { mutableStateOf(0L) }
+    val atTopLevel = currentRoute in topLevelDestinations.map { it.route } ||
+        currentRoute == Routes.KID_PROGRESS || currentRoute == Routes.WORK_HOME
+    BackHandler(enabled = atTopLevel) {
+        val now = System.currentTimeMillis()
+        if (now - lastExitPromptAt < 2000L) {
+            (context as? Activity)?.moveTaskToBack(true)
+        } else {
+            lastExitPromptAt = now
+            Toast.makeText(context, "再滑动一次退出", Toast.LENGTH_SHORT).show()
         }
     }
 
