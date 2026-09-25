@@ -181,7 +181,7 @@ fun KidProgressScreen(
 
             if (dueTasks.isNotEmpty()) {
                 item(key = "due_head") { SectionHead("今天要练（${dueTasks.size}）") }
-                items(dueTasks, key = { it.taskId }) { item ->
+                items(dueTasks, key = { "task_${it.taskId}" }) { item ->
                     KidTaskCard(
                         item = item,
                         contentState = contents[item.taskId],
@@ -205,7 +205,7 @@ fun KidProgressScreen(
 
             if (monsters.isNotEmpty()) {
                 item(key = "monster_head") { SectionHead("小怪兽图鉴") }
-                items(monsters, key = { it.weakPoint.id }) { monster ->
+                items(monsters, key = { "monster_${it.weakPoint.id}" }) { monster ->
                     MonsterCard(
                         monster = monster,
                         voiceEnabled = voiceEnabled,
