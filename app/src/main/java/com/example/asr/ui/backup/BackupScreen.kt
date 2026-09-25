@@ -109,7 +109,7 @@ fun BackupScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
 
             if (!ui.configured) {
                 Text(
-                    "尚未配置 WebDAV 账号，请先在设置页填写",
+                    "尚未配置 WebDAV 账号，请先在 设置 → 备份与存储 填写",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )

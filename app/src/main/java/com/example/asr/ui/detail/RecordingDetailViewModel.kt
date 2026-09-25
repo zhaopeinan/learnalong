@@ -101,7 +101,7 @@ class RecordingDetailViewModel(
         val candidates = tutorRepository.analyzeRecording(recordingId)
         if (candidates.isEmpty()) {
             _ui.update {
-                it.copy(notice = "分析完成，但未提取到薄弱点（可在设置页用「测试分析模型」检查模型是否可用）")
+                it.copy(notice = "分析完成，但未提取到薄弱点（可在 设置 → 模型服务 用「测试分析模型」检查模型是否可用）")
             }
         } else {
             _ui.update { it.copy(pendingAnalysis = candidates) }

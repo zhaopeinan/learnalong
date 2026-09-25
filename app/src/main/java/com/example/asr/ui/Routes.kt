@@ -15,6 +15,12 @@ object Routes {
     const val CHAT = "chat?mode={mode}&childId={childId}&refId={refId}"
     const val CHILDREN = "children"
     const val SETTINGS = "settings"
+    /** 设置分组子页：模型服务 / 语音合成与音色 / 学习与复习 / 备份与存储 / 通用 */
+    const val SETTINGS_MODEL = "settings_model"
+    const val SETTINGS_VOICE = "settings_voice"
+    const val SETTINGS_STUDY = "settings_study"
+    const val SETTINGS_BACKUP = "settings_backup"
+    const val SETTINGS_GENERAL = "settings_general"
     const val BACKUP = "backup"
     const val GUIDE = "guide"
     const val GUIDE_ARTICLE = "guide_article/{articleId}"

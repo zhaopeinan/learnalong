@@ -134,7 +134,7 @@ fun RecordScreen(onSaved: () -> Unit) {
             }
 
             Spacer(Modifier.height(16.dp))
-            // 科目下拉（科目列表在 设置 → 科目管理 中编辑）
+            // 科目下拉（科目列表在 设置 → 学习与复习 → 科目管理 中编辑）
             var subjectExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = subjectExpanded,

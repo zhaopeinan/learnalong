@@ -23,7 +23,7 @@ class SpeechSynthesizer(
     /** 合成文本，返回 24h 有效的音频 URL */
     suspend fun synthesize(text: String, voiceId: String? = null): String {
         val settings = settingsStore.settings.first()
-        require(settings.minimaxApiKey.isNotBlank()) { "请家长到「我的 → 设置 → MiniMax 语音合成」填写 API Key（在设置页向下滚动）" }
+        require(settings.minimaxApiKey.isNotBlank()) { "请家长到「我的 → 设置 → 语音合成与音色」填写 MiniMax API Key" }
         val effectiveVoiceId = voiceId?.takeIf { it.isNotBlank() }
             ?: settings.preferredVoiceId.takeIf { it.isNotBlank() }
             ?: AppSettings.DEFAULT_MINIMAX_VOICE

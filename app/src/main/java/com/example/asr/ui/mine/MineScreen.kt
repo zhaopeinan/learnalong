@@ -142,7 +142,7 @@ fun MineScreen(
                     MenuDivider()
                     MenuItem(
                         title = "设置",
-                        subtitle = "API Key、模型、WebDAV 账号、每日提醒时间",
+                        subtitle = "模型服务、语音合成与音色、备份存储、家长密码",
                         icon = Icons.Filled.Settings,
                         onClick = onOpenSettings,
                     )

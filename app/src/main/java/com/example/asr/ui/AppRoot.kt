@@ -69,7 +69,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -98,7 +100,13 @@ import com.example.asr.ui.kid.KidProgressScreen
 import com.example.asr.ui.mine.MineScreen
 import com.example.asr.ui.record.RecordScreen
 import com.example.asr.ui.recordings.RecordingsScreen
-import com.example.asr.ui.settings.SettingsScreen
+import com.example.asr.ui.settings.BackupSettingsScreen
+import com.example.asr.ui.settings.GeneralSettingsScreen
+import com.example.asr.ui.settings.ModelSettingsScreen
+import com.example.asr.ui.settings.SettingsMenuScreen
+import com.example.asr.ui.settings.SettingsViewModel
+import com.example.asr.ui.settings.StudySettingsScreen
+import com.example.asr.ui.settings.VoiceSettingsScreen
 import com.example.asr.ui.splash.SplashScreen
 import com.example.asr.ui.today.TodayScreen
 import com.example.asr.ui.weakpoints.WeakPointExerciseScreen
@@ -410,7 +418,53 @@ fun AppRoot() {
                 ChildrenScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.SETTINGS) {
-                SettingsScreen(onBack = { navController.popBackStack() })
+                SettingsMenuScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenGroup = { group ->
+                        navController.navigate(
+                            when (group) {
+                                "model" -> Routes.SETTINGS_MODEL
+                                "voice" -> Routes.SETTINGS_VOICE
+                                "study" -> Routes.SETTINGS_STUDY
+                                "backup" -> Routes.SETTINGS_BACKUP
+                                else -> Routes.SETTINGS_GENERAL
+                            }
+                        )
+                    },
+                )
+            }
+            // 设置分组子页：共享设置主页所在 back stack entry 的 ViewModel，
+            // 声音复刻录音等生命周期状态在菜单↔子页间切换不丢失
+            composable(Routes.SETTINGS_MODEL) { entry ->
+                ModelSettingsScreen(
+                    vm = settingsViewModel(navController, entry, app),
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.SETTINGS_VOICE) { entry ->
+                VoiceSettingsScreen(
+                    vm = settingsViewModel(navController, entry, app),
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.SETTINGS_STUDY) { entry ->
+                StudySettingsScreen(
+                    vm = settingsViewModel(navController, entry, app),
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.SETTINGS_BACKUP) { entry ->
+                BackupSettingsScreen(
+                    vm = settingsViewModel(navController, entry, app),
+                    onBack = { navController.popBackStack() },
+                    onOpenBackup = { navController.navigate(Routes.BACKUP) },
+                )
+            }
+            composable(Routes.SETTINGS_GENERAL) { entry ->
+                GeneralSettingsScreen(
+                    vm = settingsViewModel(navController, entry, app),
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(Routes.GUIDE) {
                 GuideScreen(
@@ -450,8 +504,9 @@ fun AppRoot() {
             composable(Routes.BACKUP) {
                 BackupScreen(
                     onBack = { navController.popBackStack() },
+                    // 「去设置」直达 WebDAV 配置所在的「备份与存储」子页
                     onOpenSettings = {
-                        navController.navigate(Routes.SETTINGS)
+                        navController.navigate(Routes.SETTINGS_BACKUP)
                     },
                 )
             }
@@ -895,4 +950,23 @@ private fun ActionPanel(
         }
         Spacer(Modifier.height(24.dp))
     }
+}
+
+/**
+ * 设置分组子页共享的 SettingsViewModel：以设置主页（SETTINGS）所在 back stack entry
+ * 为 ViewModelStoreOwner，菜单↔子页切换时录音/复刻等状态不丢失；深链直达子页时兜底用自身 entry。
+ */
+@Composable
+private fun settingsViewModel(
+    navController: NavHostController,
+    entry: NavBackStackEntry,
+    app: AsrApplication,
+): SettingsViewModel {
+    val owner = remember(entry) {
+        runCatching { navController.getBackStackEntry(Routes.SETTINGS) }.getOrDefault(entry)
+    }
+    return viewModel(
+        viewModelStoreOwner = owner,
+        factory = viewModelFactory { initializer { SettingsViewModel(app) } },
+    )
 }
