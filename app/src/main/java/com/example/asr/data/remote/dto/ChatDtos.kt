@@ -1,5 +1,6 @@
 package com.example.asr.data.remote.dto
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -13,7 +14,7 @@ data class ChatMessage(
 data class ChatRequest(
     val model: String,
     val messages: List<ChatMessage>,
-    val temperature: Double = 0.3,
+    @EncodeDefault val temperature: Double = 0.3,
 )
 
 /** 多模态消息内容块：文本或图片（data URL base64） */
@@ -42,8 +43,8 @@ data class VisionChatMessage(
 data class VisionChatRequest(
     val model: String,
     val messages: List<VisionChatMessage>,
-    val temperature: Double = 0.3,
-    @SerialName("max_tokens") val maxTokens: Int = 4096,
+    @EncodeDefault val temperature: Double = 0.3,
+    @EncodeDefault @SerialName("max_tokens") val maxTokens: Int = 4096,
 )
 
 @Serializable
