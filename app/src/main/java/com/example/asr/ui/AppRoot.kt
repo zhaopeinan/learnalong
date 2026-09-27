@@ -185,6 +185,8 @@ fun AppRoot() {
     }
 
     fun navigateTopLevel(route: String) {
+        // 已在目标 tab：不重复导航，避免同路由切换动画造成闪屏（仅保留 tab 图标按压反馈）
+        if (route == currentRoute) return
         navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) {
                 saveState = true
@@ -799,12 +801,20 @@ private fun RowScope.TabItem(
     onClick: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    // 按压反馈只落在图标 pill 区域：轻微缩放 + 淡底色（不再整格灰块闪烁）
+    val pillScale by animateFloatAsState(
+        targetValue = if (pressed) 0.86f else 1f,
+        animationSpec = tween(120),
+        label = "tabPillScale",
+    )
     Column(
         modifier = Modifier
             .weight(1f)
             .fillMaxHeight()
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
             ) {
                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
@@ -816,10 +826,17 @@ private fun RowScope.TabItem(
         Box(
             modifier = Modifier
                 .size(width = 56.dp, height = 32.dp)
+                .graphicsLayer {
+                    scaleX = pillScale
+                    scaleY = pillScale
+                }
                 .clip(CircleShape)
                 .background(
-                    if (selected) MaterialTheme.colorScheme.secondaryContainer
-                    else Color.Transparent
+                    when {
+                        selected -> MaterialTheme.colorScheme.secondaryContainer
+                        pressed -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                        else -> Color.Transparent
+                    }
                 ),
             contentAlignment = Alignment.Center,
         ) {
