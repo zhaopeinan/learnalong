@@ -18,9 +18,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import com.example.asr.data.local.entity.PointRecordEntity
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -58,8 +64,8 @@ import com.example.asr.ui.components.MasteryProgress
 import com.example.asr.ui.util.toMinuteString
 
 /**
- * 积分乐园（家长端，按孩子）：战报 + 目标兑换 + 加分任务 + 积分流水。
- * 加分/兑换瞬间播放庆祝动效与合成音效，让孩子在旁边看着有获得感。
+ * 积分乐园（家长端，按孩子）：战报 + 多目标兑换 + 加分任务 + 积分流水。
+ * 目标可多个并存，家长任选已达成的一个兑换；加分/兑换瞬间播放庆祝动效与合成音效。
  */
 @Composable
 fun PointsScreen(
@@ -80,7 +86,7 @@ fun PointsScreen(
     val child by vm.child.collectAsStateWithLifecycle()
     val points by vm.points.collectAsStateWithLifecycle()
     val tasks by vm.tasks.collectAsStateWithLifecycle()
-    val currentGoal by vm.currentGoal.collectAsStateWithLifecycle()
+    val activeGoals by vm.activeGoals.collectAsStateWithLifecycle()
     val redeemedGoals by vm.redeemedGoals.collectAsStateWithLifecycle()
     val records by vm.records.collectAsStateWithLifecycle()
     val celebration by vm.celebration.collectAsStateWithLifecycle()
@@ -90,7 +96,9 @@ fun PointsScreen(
     var editingTask by remember { mutableStateOf<PointTaskEntity?>(null) }
     var reversingRecord by remember { mutableStateOf<PointRecordEntity?>(null) }
     var showAddTask by remember { mutableStateOf(false) }
-    var showSetGoal by remember { mutableStateOf(false) }
+    var showAddGoal by remember { mutableStateOf(false) }
+    var editingGoal by remember { mutableStateOf<PointGoalEntity?>(null) }
+    var deletingGoal by remember { mutableStateOf<PointGoalEntity?>(null) }
 
     LaunchedEffect(message) {
         message?.let {
@@ -117,14 +125,47 @@ fun PointsScreen(
             ) {
                 item(key = "score") { ScoreCard(points = points) }
 
-                item(key = "goal") {
+                item(key = "goal_head") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "兑换目标",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { showAddGoal = true }) { Text("添加目标") }
+                    }
+                }
+                if (activeGoals.isEmpty()) {
+                    item(key = "goal_empty") {
+                        GoalEmptyCard(onAdd = { showAddGoal = true })
+                    }
+                }
+                items(activeGoals, key = { "goal_${it.id}" }) { goal ->
                     GoalCard(
-                        goal = currentGoal,
+                        goal = goal,
                         points = points,
-                        redeemedGoals = redeemedGoals,
-                        onSetGoal = { showSetGoal = true },
-                        onRedeem = { currentGoal?.let(vm::redeem) },
+                        onRedeem = { vm.redeem(goal) },
+                        onEdit = { editingGoal = goal },
+                        onDelete = { deletingGoal = goal },
                     )
+                }
+                if (redeemedGoals.isNotEmpty()) {
+                    item(key = "goal_history") {
+                        AppCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                redeemedGoals.forEach { g ->
+                                    Text(
+                                        "✅ 「${g.name}」（${g.targetPoints} 分）已兑现",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 2.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 item(key = "task_head") {
@@ -226,12 +267,47 @@ fun PointsScreen(
             },
         )
     }
-    if (showSetGoal) {
-        GoalSetDialog(
-            onDismiss = { showSetGoal = false },
+    if (showAddGoal) {
+        GoalEditDialog(
+            title = "添加兑换目标",
+            initialName = "",
+            initialTarget = "",
+            onDismiss = { showAddGoal = false },
             onConfirm = { name, target ->
                 vm.setGoal(name, target)
-                showSetGoal = false
+                showAddGoal = false
+            },
+        )
+    }
+    editingGoal?.let { goal ->
+        GoalEditDialog(
+            title = "编辑目标",
+            initialName = goal.name,
+            initialTarget = goal.targetPoints.toString(),
+            onDismiss = { editingGoal = null },
+            onConfirm = { name, target ->
+                vm.updateGoal(goal, name, target)
+                editingGoal = null
+            },
+        )
+    }
+    deletingGoal?.let { goal ->
+        AlertDialog(
+            onDismissRequest = { deletingGoal = null },
+            title = { Text("删除目标「${goal.name}」？") },
+            text = { Text("删除后不可恢复（已攒的积分不会受影响）。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.deleteGoal(goal)
+                        deletingGoal = null
+                    },
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingGoal = null }) { Text("取消") }
             },
         )
     }
@@ -304,79 +380,98 @@ private fun ScoreCard(points: Int) {
     }
 }
 
-/** 目标进度卡：未设目标 → 引导；进行中 → 进度条 + 还差 N 分；达成 → 「已兑现」 */
+/** 未设目标时的引导卡 */
+@Composable
+private fun GoalEmptyCard(onAdd: () -> Unit) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "设一个小目标（比如「去游乐园 100 分」），攒够了就兑现奖励",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = onAdd,
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+            ) { Text("设置目标") }
+        }
+    }
+}
+
+/** 单个目标卡：进度条 + 还差 N 分；达成后高亮并可兑换；⋮ 菜单编辑/删除 */
 @Composable
 private fun GoalCard(
-    goal: PointGoalEntity?,
+    goal: PointGoalEntity,
     points: Int,
-    redeemedGoals: List<PointGoalEntity>,
-    onSetGoal: () -> Unit,
     onRedeem: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
 ) {
-    val achieved = goal != null && KidPoints.isAchieved(points, goal.targetPoints)
+    val achieved = KidPoints.isAchieved(points, goal.targetPoints)
     AppCard(
         modifier = Modifier.fillMaxWidth(),
         containerColor = if (achieved) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surface,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            if (goal == null) {
-                Text("兑换目标", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "设一个小目标（比如「去游乐园 100 分」），攒够了就兑现奖励",
-                    style = MaterialTheme.typography.bodySmall,
+                    if (achieved) "🎉 ${goal.name}" else goal.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "${points}/${goal.targetPoints}",
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = onSetGoal,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.small,
-                ) { Text("设置目标") }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (achieved) "🎉 「${goal.name}」达成！" else "目标：${goal.name}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        "${points}/${goal.targetPoints}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                MasteryProgress(
-                    mastery = (KidPoints.progress(points, goal.targetPoints) * 100).toInt(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    if (achieved) "快兑现奖励吧" else "还差 ${KidPoints.remaining(points, goal.targetPoints)} 分",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (achieved) {
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = onRedeem,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.small,
-                    ) { Text("已兑现（-${goal.targetPoints} 分）") }
+                Box {
+                    var menuOpen by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                    }
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("编辑") },
+                            onClick = {
+                                menuOpen = false
+                                onEdit()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                menuOpen = false
+                                onDelete()
+                            },
+                        )
+                    }
                 }
             }
-            if (redeemedGoals.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            MasteryProgress(
+                mastery = (KidPoints.progress(points, goal.targetPoints) * 100).toInt(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (achieved) "已达成，快兑换奖励吧" else "还差 ${KidPoints.remaining(points, goal.targetPoints)} 分",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (achieved) {
                 Spacer(Modifier.height(12.dp))
-                redeemedGoals.forEach { g ->
-                    Text(
-                        "✅ 「${g.name}」（${g.targetPoints} 分）已兑现",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Button(
+                    onClick = onRedeem,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                ) { Text("兑换奖励（-${goal.targetPoints} 分）") }
             }
         }
     }
@@ -454,20 +549,23 @@ private fun TaskEditDialog(
     )
 }
 
-/** 设置兑换目标弹窗：目标名称 + 所需积分 */
+/** 目标新增/编辑弹窗：目标名称 + 所需积分 */
 @Composable
-private fun GoalSetDialog(
+private fun GoalEditDialog(
+    title: String,
+    initialName: String,
+    initialTarget: String,
     onDismiss: () -> Unit,
     onConfirm: (String, Int) -> Unit,
 ) {
-    var name by remember { mutableStateOf("") }
-    var targetText by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initialName) }
+    var targetText by remember { mutableStateOf(initialTarget) }
     val target = targetText.toIntOrNull()
     val valid = KidPoints.isValidGoal(name, target ?: 0)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("设置兑换目标") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(

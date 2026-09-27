@@ -451,6 +451,9 @@ interface PointDao {
     @Update
     suspend fun updateGoal(goal: PointGoalEntity)
 
+    @Query("DELETE FROM point_goals WHERE id = :id")
+    suspend fun deleteGoal(id: Long)
+
     /** 完成任务加分：加积分 + 记流水（事务） */
     @androidx.room.Transaction
     suspend fun earn(childId: Long, delta: Int, reason: String, at: Long) {

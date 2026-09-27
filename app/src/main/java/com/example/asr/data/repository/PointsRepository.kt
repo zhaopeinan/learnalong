@@ -56,7 +56,7 @@ class PointsRepository(private val pointDao: PointDao) {
 
     suspend fun deleteTask(task: PointTaskEntity) = pointDao.deleteTask(task.id)
 
-    /** 设置新目标（旧目标已兑现后才允许，由界面控制入口） */
+    /** 添加新目标（可多个并存，家长任选其一兑换） */
     suspend fun setGoal(childId: Long, name: String, targetPoints: Int) {
         require(KidPoints.isValidGoal(name, targetPoints)) { "目标名称不能为空，目标分值需大于 0" }
         pointDao.insertGoal(
@@ -68,6 +68,13 @@ class PointsRepository(private val pointDao: PointDao) {
             )
         )
     }
+
+    suspend fun updateGoal(goal: PointGoalEntity, name: String, targetPoints: Int) {
+        require(KidPoints.isValidGoal(name, targetPoints)) { "目标名称不能为空，目标分值需大于 0" }
+        pointDao.updateGoal(goal.copy(name = name.trim(), targetPoints = targetPoints))
+    }
+
+    suspend fun deleteGoal(goal: PointGoalEntity) = pointDao.deleteGoal(goal.id)
 
     /** 首次进入该孩子积分页时预置默认任务（已有任务则不重复写入） */
     suspend fun seedDefaultTasksIfEmpty(childId: Long) {

@@ -35,10 +35,10 @@ class PointsViewModel(
     private val goals: StateFlow<List<PointGoalEntity>> = pointsRepository.observeGoals(childId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** 当前目标：未兑现的最新一条 */
-    val currentGoal: StateFlow<PointGoalEntity?> = goals
-        .map { list -> list.firstOrNull { it.redeemedAt == null } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    /** 进行中的目标：可多个并存，家长任选其一兑换 */
+    val activeGoals: StateFlow<List<PointGoalEntity>> = goals
+        .map { list -> list.filter { it.redeemedAt == null } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** 历史目标：已兑现 */
     val redeemedGoals: StateFlow<List<PointGoalEntity>> = goals
@@ -72,14 +72,14 @@ class PointsViewModel(
         }
     }
 
-    /** 点「已兑现」→ 扣减 + 长版庆祝；积分不足拦截提示 */
+    /** 点「兑换奖励」→ 扣减 + 长版庆祝；积分不足拦截提示 */
     fun redeem(goal: PointGoalEntity) {
         viewModelScope.launch {
             if (pointsRepository.redeem(goal)) {
                 _celebration.value = Celebration(
                     key = System.nanoTime(),
                     deltaText = "-${goal.targetPoints}",
-                    title = "目标达成！",
+                    title = "「${goal.name}」兑换成功！",
                     long = true,
                 )
             } else {
@@ -131,6 +131,20 @@ class PointsViewModel(
                 _message.value = e.message
             }
         }
+    }
+
+    fun updateGoal(goal: PointGoalEntity, name: String, targetPoints: Int) {
+        viewModelScope.launch {
+            try {
+                pointsRepository.updateGoal(goal, name, targetPoints)
+            } catch (e: Exception) {
+                _message.value = e.message
+            }
+        }
+    }
+
+    fun deleteGoal(goal: PointGoalEntity) {
+        viewModelScope.launch { pointsRepository.deleteGoal(goal) }
     }
 
     fun dismissCelebration() {
