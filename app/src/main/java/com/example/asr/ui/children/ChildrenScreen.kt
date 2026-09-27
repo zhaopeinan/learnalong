@@ -2,6 +2,7 @@ package com.example.asr.ui.children
 
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,14 +16,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
@@ -68,6 +73,7 @@ fun ChildrenScreen(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val previewingId by vm.previewingId.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<ChildEntity?>(null) }
+    var deleting by remember { mutableStateOf<ChildEntity?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -136,10 +142,39 @@ fun ChildrenScreen(
                                 )
                             }
                             Spacer(Modifier.weight(1f))
-                            TextButton(onClick = { onOpenPoints(child.id) }) { Text("积分") }
-                            TextButton(onClick = { editing = child }) { Text("编辑") }
-                            TextButton(onClick = { vm.delete(child) }) {
-                                Text("删除", color = MaterialTheme.colorScheme.error)
+                            Button(
+                                onClick = { onOpenPoints(child.id) },
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                            ) {
+                                Text("积分", maxLines = 1)
+                            }
+                            Box {
+                                var menuOpen by remember { mutableStateOf(false) }
+                                IconButton(onClick = { menuOpen = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                                }
+                                DropdownMenu(
+                                    expanded = menuOpen,
+                                    onDismissRequest = { menuOpen = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("编辑") },
+                                        onClick = {
+                                            menuOpen = false
+                                            editing = child
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text("删除", color = MaterialTheme.colorScheme.error)
+                                        },
+                                        onClick = {
+                                            menuOpen = false
+                                            deleting = child
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -186,6 +221,58 @@ fun ChildrenScreen(
             },
         )
     }
+    deleting?.let { child ->
+        DeleteChildDialog(
+            child = child,
+            onDismiss = { deleting = null },
+            onConfirm = {
+                vm.delete(child)
+                deleting = null
+            },
+        )
+    }
+}
+
+/** 删除孩子二次确认：必须输入孩子姓名才能点「永久删除」（删除会级联清空该孩子全部数据） */
+@Composable
+private fun DeleteChildDialog(
+    child: ChildEntity,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    var input by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("删除「${child.name}」？") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "删除后，${child.name}的录音、薄弱点、复习任务、积分等所有数据都会被永久清除，无法恢复。",
+                    color = MaterialTheme.colorScheme.error,
+                )
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    label = { Text("输入孩子姓名「${child.name}」确认") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = input.trim() == child.name,
+            ) {
+                Text(
+                    "永久删除",
+                    color = if (input.trim() == child.name) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }
 
 /** 学段 → 年级 选项 */
