@@ -11,6 +11,9 @@ import com.example.asr.data.local.entity.ChatSessionEntity
 import com.example.asr.data.local.entity.ChildEntity
 import com.example.asr.data.local.entity.KidStarEntity
 import com.example.asr.data.local.entity.MasteryHistoryEntity
+import com.example.asr.data.local.entity.PointGoalEntity
+import com.example.asr.data.local.entity.PointRecordEntity
+import com.example.asr.data.local.entity.PointTaskEntity
 import com.example.asr.data.local.entity.RecordingEntity
 import com.example.asr.data.local.entity.RecordingPhotoEntity
 import com.example.asr.data.local.entity.RecordingWithChild
@@ -382,6 +385,86 @@ interface KidStarDao {
 
     @Query("SELECT stars FROM kid_stars WHERE childId = :childId")
     fun observeStars(childId: Long): Flow<Int?>
+}
+
+@Dao
+interface PointDao {
+    @Query("SELECT points FROM kid_points WHERE childId = :childId")
+    fun observePoints(childId: Long): Flow<Int?>
+
+    @Query("SELECT points FROM kid_points WHERE childId = :childId")
+    suspend fun getPoints(childId: Long): Int?
+
+    /** 积分加减（delta 可负）：UPSERT 累加（与 KidStarDao.addStar 同风格） */
+    @Query(
+        """
+        INSERT INTO kid_points (childId, points) VALUES (:childId, :delta)
+        ON CONFLICT(childId) DO UPDATE SET points = points + :delta
+        """
+    )
+    suspend fun addPoints(childId: Long, delta: Int)
+
+    @Insert
+    suspend fun insertRecord(record: PointRecordEntity): Long
+
+    @Query("SELECT * FROM point_records WHERE childId = :childId ORDER BY createdAt DESC, id DESC LIMIT 50")
+    fun observeRecords(childId: Long): Flow<List<PointRecordEntity>>
+
+    // ---------- 加分任务 ----------
+
+    @Query("SELECT * FROM point_tasks WHERE childId = :childId ORDER BY createdAt ASC, id ASC")
+    fun observeTasks(childId: Long): Flow<List<PointTaskEntity>>
+
+    @Query("SELECT COUNT(*) FROM point_tasks WHERE childId = :childId")
+    suspend fun countTasks(childId: Long): Int
+
+    @Insert
+    suspend fun insertTask(task: PointTaskEntity): Long
+
+    @Insert
+    suspend fun insertTasks(tasks: List<PointTaskEntity>)
+
+    @Update
+    suspend fun updateTask(task: PointTaskEntity)
+
+    @Query("DELETE FROM point_tasks WHERE id = :id")
+    suspend fun deleteTask(id: Long)
+
+    // ---------- 兑换目标 ----------
+
+    @Query("SELECT * FROM point_goals WHERE childId = :childId ORDER BY createdAt DESC, id DESC")
+    fun observeGoals(childId: Long): Flow<List<PointGoalEntity>>
+
+    @Insert
+    suspend fun insertGoal(goal: PointGoalEntity): Long
+
+    @Update
+    suspend fun updateGoal(goal: PointGoalEntity)
+
+    /** 完成任务加分：加积分 + 记流水（事务） */
+    @androidx.room.Transaction
+    suspend fun earn(childId: Long, delta: Int, reason: String, at: Long) {
+        addPoints(childId, delta)
+        insertRecord(PointRecordEntity(childId = childId, delta = delta, reason = reason, createdAt = at))
+    }
+
+    /** 兑换：扣减目标分值 + 标记目标已兑现 + 记负流水（事务）；积分不足返回 false 拦截 */
+    @androidx.room.Transaction
+    suspend fun redeem(goal: PointGoalEntity, at: Long): Boolean {
+        val current = getPoints(goal.childId) ?: 0
+        if (current < goal.targetPoints) return false
+        addPoints(goal.childId, -goal.targetPoints)
+        updateGoal(goal.copy(achievedAt = goal.achievedAt ?: at, redeemedAt = at))
+        insertRecord(
+            PointRecordEntity(
+                childId = goal.childId,
+                delta = -goal.targetPoints,
+                reason = "兑换「${goal.name}」",
+                createdAt = at,
+            )
+        )
+        return true
+    }
 }
 
 @Dao

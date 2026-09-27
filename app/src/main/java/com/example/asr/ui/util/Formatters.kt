@@ -13,6 +13,9 @@ fun Long.toDateTimeString(): String =
 fun Long.toDateString(): String =
     SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(this))
 
+fun Long.toMinuteString(): String =
+    SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(this))
+
 fun Int.toDurationString(): String {
     val m = this / 60
     val s = this % 60

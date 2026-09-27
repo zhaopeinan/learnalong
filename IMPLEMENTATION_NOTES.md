@@ -16,7 +16,7 @@ app/src/main/java/com/example/asr/
 │   └── TestAudio.kt           # 设置页「测试转写」用内置样本
 ├── data/
 │   ├── local/
-│   │   ├── AppDatabase.kt     # Room v10，12 张表（见下）；含全部迁移
+│   │   ├── AppDatabase.kt     # Room v11，16 张表（见下）；含全部迁移
 │   │   ├── entity/Entities.kt # 全部实体 + 联查投影（ReviewTaskWithWeakPoint 等）
 │   │   ├── dao/Daos.kt        # 各表 DAO
 │   │   ├── MediaStorage.kt    # 媒体存储管理：占用统计、音频清理（可先发云端）、孤儿文件清理
@@ -43,13 +43,15 @@ app/src/main/java/com/example/asr/
     └── util/Formatters.kt
 ```
 
-## 数据层（Room v10，12 张表）
+## 数据层（Room v11，16 张表）
 
 `children`、`recordings`（含 segments 分段 JSON、polishedText、audioRemoved/audioBackedUp）、
 `transcript_segments`、`weak_points`（含 exerciseCache 练习缓存）、`review_tasks`、
 `mastery_history`（掌握度快照）、`recording_photos`（错题照片）、`chat_sessions`、
-`chat_messages`、`kid_stars`、`work_recordings`、`work_todos`。
-迁移链 v1→v10 全部在 `AppDatabase.kt`；实体带 `@Serializable` 直接用于备份快照。
+`chat_messages`、`kid_stars`、`work_recordings`、`work_todos`，以及积分乐园四张表：
+`kid_points`（当前积分）、`point_tasks`（加分任务）、`point_goals`（兑换目标）、
+`point_records`（积分流水）。迁移链 v1→v11 全部在 `AppDatabase.kt`；
+实体带 `@Serializable` 直接用于备份快照。
 
 ## 外部通道
 
@@ -80,6 +82,8 @@ app/src/main/java/com/example/asr/
 - 辅导录音的 `audioRemoved=true` 记录恢复时不拉回音频（已主动清理的不再占空间）；
 - **chat_sessions / chat_messages / kid_stars 不纳入备份**：小程序 ExportData 本就不含这两类
   （会话为一次性辅导上下文、星星为本地激励），Android 端有意对齐，不补齐；
+- 积分乐园四张表（kid_points / point_tasks / point_goals / point_records）为 Android 原生功能，
+  同样不纳入备份（小程序无对应数据）；
 - 工作端录音/待办在 v1.0.14 起纳入备份，早于该版本的小程序备份没有这两个字段，恢复时按缺省空表处理。
 
 ## 已知限制

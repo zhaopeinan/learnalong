@@ -291,6 +291,85 @@ data class KidStarEntity(
     val stars: Int,
 )
 
+/** 积分乐园：孩子当前积分（冗余计数，加减走 PointRecordEntity 流水） */
+@Entity(
+    tableName = "kid_points",
+    foreignKeys = [ForeignKey(
+        entity = ChildEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["childId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+)
+@Serializable
+data class KidPointEntity(
+    @PrimaryKey val childId: Long,
+    val points: Int,
+)
+
+/** 积分乐园：加分任务（家长可增删改，名称 + 分值） */
+@Entity(
+    tableName = "point_tasks",
+    foreignKeys = [ForeignKey(
+        entity = ChildEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["childId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("childId")],
+)
+@Serializable
+data class PointTaskEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val childId: Long,
+    val name: String,
+    val points: Int,           // 1-99
+    val createdAt: Long,
+)
+
+/** 积分乐园：兑换目标；当前目标 = redeemedAt 为空的最新一条，已兑现的进历史 */
+@Entity(
+    tableName = "point_goals",
+    foreignKeys = [ForeignKey(
+        entity = ChildEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["childId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("childId")],
+)
+@Serializable
+data class PointGoalEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val childId: Long,
+    val name: String,
+    val targetPoints: Int,
+    val createdAt: Long,
+    /** 达成（积分首次 >= targetPoints）时间；展示态即时判断时可与 redeemedAt 同时写入 */
+    val achievedAt: Long? = null,
+    val redeemedAt: Long? = null,
+)
+
+/** 积分乐园：积分流水（加分 +N / 兑换扣减 -N） */
+@Entity(
+    tableName = "point_records",
+    foreignKeys = [ForeignKey(
+        entity = ChildEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["childId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("childId")],
+)
+@Serializable
+data class PointRecordEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val childId: Long,
+    val delta: Int,            // 正 = 加分，负 = 兑换扣减
+    val reason: String,
+    val createdAt: Long,
+)
+
 /** 工作端录音：会议/工作谈话/通话（对应小程序 WorkRecording） */
 @Entity(tableName = "work_recordings")
 @Serializable

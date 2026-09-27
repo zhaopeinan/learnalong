@@ -8,6 +8,7 @@ import com.example.asr.data.remote.DebugLog
 import com.example.asr.data.remote.NetworkClient
 import com.example.asr.data.repository.ChildRepository
 import com.example.asr.data.repository.ChatRepository
+import com.example.asr.data.repository.PointsRepository
 import com.example.asr.data.repository.RecordingRepository
 import com.example.asr.data.repository.TutorRepository
 import com.example.asr.data.repository.WorkRepository
@@ -114,6 +115,9 @@ class AppContainer(context: Application) {
 
     /** 孩子端星星激励 */
     val kidReward = KidReward(db.kidStarDao())
+
+    /** 积分乐园：任务加分 / 目标兑换 / 流水 */
+    val pointsRepository = PointsRepository(db.pointDao())
 }
 
 class AsrApplication : Application() {

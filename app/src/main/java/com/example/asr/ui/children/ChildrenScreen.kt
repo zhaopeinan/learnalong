@@ -56,7 +56,10 @@ import com.example.asr.ui.components.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChildrenScreen(onBack: () -> Unit) {
+fun ChildrenScreen(
+    onBack: () -> Unit,
+    onOpenPoints: (Long) -> Unit,
+) {
     val app = LocalContext.current.applicationContext as AsrApplication
     val vm: ChildrenViewModel = viewModel(factory = viewModelFactory {
         initializer { ChildrenViewModel(app) }
@@ -133,6 +136,7 @@ fun ChildrenScreen(onBack: () -> Unit) {
                                 )
                             }
                             Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { onOpenPoints(child.id) }) { Text("积分") }
                             TextButton(onClick = { editing = child }) { Text("编辑") }
                             TextButton(onClick = { vm.delete(child) }) {
                                 Text("删除", color = MaterialTheme.colorScheme.error)

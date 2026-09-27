@@ -100,6 +100,7 @@ import com.example.asr.ui.guide.GuideArticleScreen
 import com.example.asr.ui.guide.GuideScreen
 import com.example.asr.ui.kid.KidNavBar
 import com.example.asr.ui.kid.KidProgressScreen
+import com.example.asr.ui.points.PointsScreen
 import com.example.asr.ui.mine.MineScreen
 import com.example.asr.ui.record.RecordScreen
 import com.example.asr.ui.recordings.RecordingsScreen
@@ -433,7 +434,19 @@ fun AppRoot() {
                 )
             }
             composable(Routes.CHILDREN) {
-                ChildrenScreen(onBack = { navController.popBackStack() })
+                ChildrenScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenPoints = { childId -> navController.navigate(Routes.points(childId)) },
+                )
+            }
+            composable(
+                Routes.POINTS,
+                arguments = listOf(navArgument("childId") { type = NavType.LongType }),
+            ) { entry ->
+                PointsScreen(
+                    childId = entry.arguments?.getLong("childId") ?: 0L,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(Routes.SETTINGS) {
                 SettingsMenuScreen(

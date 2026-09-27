@@ -8,6 +8,7 @@ import com.example.asr.data.local.dao.ChatDao
 import com.example.asr.data.local.dao.ChildDao
 import com.example.asr.data.local.dao.KidStarDao
 import com.example.asr.data.local.dao.MasteryHistoryDao
+import com.example.asr.data.local.dao.PointDao
 import com.example.asr.data.local.dao.RecordingDao
 import com.example.asr.data.local.dao.RecordingPhotoDao
 import com.example.asr.data.local.dao.ReviewTaskDao
@@ -20,6 +21,10 @@ import com.example.asr.data.local.entity.ChatSessionEntity
 import com.example.asr.data.local.entity.ChildEntity
 import com.example.asr.data.local.entity.KidStarEntity
 import com.example.asr.data.local.entity.MasteryHistoryEntity
+import com.example.asr.data.local.entity.PointGoalEntity
+import com.example.asr.data.local.entity.PointRecordEntity
+import com.example.asr.data.local.entity.PointTaskEntity
+import com.example.asr.data.local.entity.KidPointEntity
 import com.example.asr.data.local.entity.RecordingEntity
 import com.example.asr.data.local.entity.RecordingPhotoEntity
 import com.example.asr.data.local.entity.ReviewTaskEntity
@@ -40,10 +45,14 @@ import com.example.asr.data.local.entity.WorkTodoEntity
         ChatSessionEntity::class,
         ChatMessageEntity::class,
         KidStarEntity::class,
+        KidPointEntity::class,
+        PointTaskEntity::class,
+        PointGoalEntity::class,
+        PointRecordEntity::class,
         WorkRecordingEntity::class,
         WorkTodoEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -56,6 +65,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recordingPhotoDao(): RecordingPhotoDao
     abstract fun chatDao(): ChatDao
     abstract fun kidStarDao(): KidStarDao
+    abstract fun pointDao(): PointDao
     abstract fun workRecordingDao(): WorkRecordingDao
     abstract fun workTodoDao(): WorkTodoDao
 
@@ -245,6 +255,75 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v10 → v11：积分乐园四张表（当前积分 / 加分任务 / 兑换目标 / 积分流水） */
+        private val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS kid_points (
+                        childId INTEGER PRIMARY KEY NOT NULL,
+                        points INTEGER NOT NULL,
+                        FOREIGN KEY(childId) REFERENCES children(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS point_tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        childId INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        points INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        FOREIGN KEY(childId) REFERENCES children(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_point_tasks_childId " +
+                        "ON point_tasks(childId)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS point_goals (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        childId INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        targetPoints INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        achievedAt INTEGER,
+                        redeemedAt INTEGER,
+                        FOREIGN KEY(childId) REFERENCES children(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_point_goals_childId " +
+                        "ON point_goals(childId)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS point_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        childId INTEGER NOT NULL,
+                        delta INTEGER NOT NULL,
+                        reason TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        FOREIGN KEY(childId) REFERENCES children(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_point_records_childId " +
+                        "ON point_records(childId)"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -254,7 +333,7 @@ abstract class AppDatabase : RoomDatabase() {
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                    MIGRATION_8_9, MIGRATION_9_10,
+                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                 ).build().also { INSTANCE = it }
             }
     }

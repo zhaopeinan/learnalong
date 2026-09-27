@@ -28,6 +28,8 @@ object Routes {
     const val DETAIL = "detail/{recordingId}"
     const val EXERCISE = "exercise/{weakPointId}"
     const val KID_PROGRESS = "kid_progress"
+    /** 积分乐园（家长端，按孩子） */
+    const val POINTS = "points/{childId}"
     /** 工作端首页（记录列表 / 待办清单两视图，页内切换） */
     const val WORK_HOME = "work_home"
     const val WORK_RECORD = "work_record"
@@ -36,6 +38,7 @@ object Routes {
 
     fun detail(recordingId: Long) = "detail/$recordingId"
     fun exercise(weakPointId: Long) = "exercise/$weakPointId"
+    fun points(childId: Long) = "points/$childId"
     fun guideArticle(articleId: String) = "guide_article/$articleId"
     fun workDetail(recordingId: Long, auto: Boolean = false) = "work_detail/$recordingId?auto=$auto"
 
