@@ -410,6 +410,16 @@ interface PointDao {
     @Query("SELECT * FROM point_records WHERE childId = :childId ORDER BY createdAt DESC, id DESC LIMIT 50")
     fun observeRecords(childId: Long): Flow<List<PointRecordEntity>>
 
+    @Query("DELETE FROM point_records WHERE id = :id")
+    suspend fun deleteRecord(id: Long)
+
+    /** 撤销一条加分流水：删除记录并反向冲销分值（事务）；仅限加分（正 delta）记录 */
+    @androidx.room.Transaction
+    suspend fun reverseEarnRecord(record: PointRecordEntity) {
+        deleteRecord(record.id)
+        addPoints(record.childId, -record.delta)
+    }
+
     // ---------- 加分任务 ----------
 
     @Query("SELECT * FROM point_tasks WHERE childId = :childId ORDER BY createdAt ASC, id ASC")

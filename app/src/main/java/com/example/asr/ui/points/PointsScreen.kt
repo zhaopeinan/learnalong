@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import com.example.asr.data.local.entity.PointRecordEntity
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -87,6 +88,7 @@ fun PointsScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     var editingTask by remember { mutableStateOf<PointTaskEntity?>(null) }
+    var reversingRecord by remember { mutableStateOf<PointRecordEntity?>(null) }
     var showAddTask by remember { mutableStateOf(false) }
     var showSetGoal by remember { mutableStateOf(false) }
 
@@ -180,6 +182,11 @@ fun PointsScreen(
                                             color = if (record.delta >= 0) MaterialTheme.colorScheme.primary
                                             else MaterialTheme.colorScheme.tertiary,
                                         )
+                                        if (record.delta > 0) {
+                                            TextButton(onClick = { reversingRecord = record }) {
+                                                Text("删除")
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -225,6 +232,26 @@ fun PointsScreen(
             onConfirm = { name, target ->
                 vm.setGoal(name, target)
                 showSetGoal = false
+            },
+        )
+    }
+    reversingRecord?.let { record ->
+        AlertDialog(
+            onDismissRequest = { reversingRecord = null },
+            title = { Text("删除这条加分？") },
+            text = { Text("「${record.reason} +${record.delta}」将被删除，同时从当前积分中扣回 ${record.delta} 分。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.reverseEarn(record)
+                        reversingRecord = null
+                    },
+                ) {
+                    Text("删除并扣回", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { reversingRecord = null }) { Text("取消") }
             },
         )
     }

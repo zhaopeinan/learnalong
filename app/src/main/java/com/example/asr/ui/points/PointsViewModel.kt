@@ -112,6 +112,17 @@ class PointsViewModel(
         viewModelScope.launch { pointsRepository.deleteTask(task) }
     }
 
+    /** 撤销误点的加分：删流水并扣回分值 */
+    fun reverseEarn(record: PointRecordEntity) {
+        viewModelScope.launch {
+            try {
+                pointsRepository.reverseEarn(record)
+            } catch (e: Exception) {
+                _message.value = e.message
+            }
+        }
+    }
+
     fun setGoal(name: String, targetPoints: Int) {
         viewModelScope.launch {
             try {

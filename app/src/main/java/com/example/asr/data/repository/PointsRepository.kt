@@ -27,6 +27,12 @@ class PointsRepository(private val pointDao: PointDao) {
     suspend fun earn(task: PointTaskEntity) =
         pointDao.earn(task.childId, task.points, task.name, System.currentTimeMillis())
 
+    /** 撤销一条误点的加分：删流水 + 扣回分值（仅限加分记录，兑换记录不可删） */
+    suspend fun reverseEarn(record: PointRecordEntity) {
+        require(record.delta > 0) { "只能撤销加分记录" }
+        pointDao.reverseEarnRecord(record)
+    }
+
     /** 兑换：扣减目标分值、目标进历史、记负流水；积分不足返回 false（拦截） */
     suspend fun redeem(goal: PointGoalEntity): Boolean =
         pointDao.redeem(goal, System.currentTimeMillis())
