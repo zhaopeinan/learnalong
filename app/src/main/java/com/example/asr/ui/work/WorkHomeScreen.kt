@@ -1,5 +1,6 @@
 package com.example.asr.ui.work
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +19,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -31,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -239,9 +244,24 @@ private fun TodoListView(
         }
         return
     }
+    // 未办/已办分区：已办默认折叠沉底，不与未办穿插；勾选后自动从未办区移走
+    val pending = todos.filter { !it.done }
+    val done = todos.filter { it.done }
+    var showDone by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<Long?>(null) }
+
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(todos, key = { it.id }) { t ->
+        if (pending.isEmpty()) {
+            item(key = "all_done") {
+                Text(
+                    "🎉 待办全部办完了",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            }
+        }
+        items(pending, key = { "todo_${it.id}" }) { t ->
             WorkTodoCard(
                 text = t.text,
                 assignee = t.assignee,
@@ -250,7 +270,60 @@ private fun TodoListView(
                 meta = t.recordingTitle,
                 onToggle = { onToggle(t) },
                 onLongPress = { pendingDelete = t.id },
+                modifier = Modifier.animateItem(
+                    fadeInSpec = tween(250),
+                    fadeOutSpec = tween(250),
+                    placementSpec = tween(250),
+                ),
             )
+        }
+        if (done.isNotEmpty()) {
+            item(key = "done_header") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.small)
+                        .combinedClickable(
+                            onClick = { showDone = !showDone },
+                            onLongClick = null,
+                        )
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                ) {
+                    Icon(
+                        Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (showDone) "收起已办" else "展开已办",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.graphicsLayer {
+                            rotationZ = if (showDone) 180f else 0f
+                        },
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "已办（${done.size}）",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (showDone) {
+                items(done, key = { "done_${it.id}" }) { t ->
+                    WorkTodoCard(
+                        text = t.text,
+                        assignee = t.assignee,
+                        deadline = t.deadline,
+                        done = t.done,
+                        meta = t.recordingTitle,
+                        onToggle = { onToggle(t) },
+                        onLongPress = { pendingDelete = t.id },
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = tween(250),
+                            fadeOutSpec = tween(250),
+                            placementSpec = tween(250),
+                        ),
+                    )
+                }
+            }
         }
         item { Spacer(Modifier.height(8.dp)) }
     }
