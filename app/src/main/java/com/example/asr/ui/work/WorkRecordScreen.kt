@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.example.asr.ui.util.OpenDocumentInRecorderFolder
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -100,9 +101,9 @@ fun WorkRecordScreen(
     var importing by remember { mutableStateOf(false) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
 
-    // 导入外部音频（按当前选择的场景分析）
+    // 导入外部音频（按当前选择的场景分析）：选择器自动定位到本机系统录音机文件夹
     val audioPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
+        remember { OpenDocumentInRecorderFolder() }
     ) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         importing = true

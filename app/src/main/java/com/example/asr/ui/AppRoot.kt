@@ -2,7 +2,7 @@ package com.example.asr.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import com.example.asr.ui.util.OpenDocumentInRecorderFolder
 import android.app.Activity
 import android.widget.Toast
 import androidx.annotation.DrawableRes
@@ -221,9 +221,10 @@ fun AppRoot() {
         onError = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
     )
 
-    // 动作面板导入音频：复用分享导入的 pendingImport 模式，进记录页确认归属
+    // 动作面板导入音频：复用分享导入的 pendingImport 模式，进记录页确认归属；
+    // 选择器自动定位到本机系统录音机文件夹
     val audioPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
+        remember { OpenDocumentInRecorderFolder() }
     ) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         scope.launch(Dispatchers.IO) {

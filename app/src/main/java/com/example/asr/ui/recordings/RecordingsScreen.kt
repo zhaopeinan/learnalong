@@ -1,7 +1,7 @@
 package com.example.asr.ui.recordings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import com.example.asr.ui.util.OpenDocumentInRecorderFolder
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -121,10 +121,10 @@ fun RecordingsScreen(
         }
     }
 
-    // 系统文件选择器（音频）
+    // 系统文件选择器（音频）：自动定位到本机系统录音机文件夹
     val pickerScope = rememberCoroutineScope()
     val audioPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
+        remember { OpenDocumentInRecorderFolder() }
     ) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         pickerScope.launch(Dispatchers.IO) {
