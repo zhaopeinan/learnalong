@@ -14,10 +14,14 @@ class ChildRepository(private val childDao: ChildDao) {
                 name = name.trim(),
                 grade = grade?.trim()?.ifEmpty { null },
                 voiceId = voiceId?.takeIf { it.isNotBlank() },
+                sortOrder = childDao.nextSortOrder(),
             )
         )
 
     suspend fun update(child: ChildEntity) = childDao.update(child)
 
     suspend fun delete(child: ChildEntity) = childDao.delete(child)
+
+    /** 拖拽排序落库：按列表顺序重写 sortOrder */
+    suspend fun updateSortOrders(orderedIds: List<Long>) = childDao.updateSortOrders(orderedIds)
 }

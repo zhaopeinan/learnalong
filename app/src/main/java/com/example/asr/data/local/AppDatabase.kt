@@ -52,7 +52,7 @@ import com.example.asr.data.local.entity.WorkTodoEntity
         WorkRecordingEntity::class,
         WorkTodoEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -324,6 +324,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v11 → v12：孩子表加排序序号（孩子管理页拖拽排序，存量数据按插入顺序回填） */
+        private val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE children ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL("UPDATE children SET sortOrder = id")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -333,7 +343,7 @@ abstract class AppDatabase : RoomDatabase() {
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
                 ).build().also { INSTANCE = it }
             }
     }

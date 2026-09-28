@@ -117,4 +117,9 @@ class ChildrenViewModel(application: Application) : ViewModel() {
     fun delete(child: ChildEntity) {
         viewModelScope.launch { childRepository.delete(child) }
     }
+
+    /** 拖拽排序落库 */
+    fun reorder(orderedIds: List<Long>) {
+        viewModelScope.launch { childRepository.updateSortOrders(orderedIds) }
+    }
 }

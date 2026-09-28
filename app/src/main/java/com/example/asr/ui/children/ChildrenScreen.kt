@@ -1,6 +1,8 @@
 package com.example.asr.ui.children
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -39,15 +43,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -107,15 +116,48 @@ fun ChildrenScreen(
                 modifier = Modifier.padding(padding),
             )
         } else {
+            // 拖拽排序状态：长按 ≡ 手柄拖动，拖动中用本地临时顺序，松手后一次性落库
+            val listState = rememberLazyListState()
+            var draggingId by remember { mutableStateOf<Long?>(null) }
+            var dragOffsetY by remember { mutableFloatStateOf(0f) }
+            var dragOrder by remember { mutableStateOf<List<ChildEntity>?>(null) }
+            val displayChildren = dragOrder ?: children
+            val spacingPx = with(LocalDensity.current) { 12.dp.toPx() }
+            // 数据库顺序回流且不在拖拽时，丢弃本地临时顺序
+            LaunchedEffect(children) { if (draggingId == null) dragOrder = null }
+
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(children, key = { it.id }) { child ->
+                if (children.size > 1) {
+                    item(key = "reorder_hint") {
+                        Text(
+                            "长按右侧 ≡ 拖拽排序，其他页面（如积分）按此顺序展示",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                    }
+                }
+                items(displayChildren, key = { it.id }) { child ->
+                    val dragging = draggingId == child.id
+                    val elevation by animateFloatAsState(
+                        targetValue = if (dragging) 1.04f else 1f,
+                        animationSpec = tween(120),
+                        label = "dragScale",
+                    )
                     AppCard(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .zIndex(if (dragging) 1f else 0f)
+                            .graphicsLayer {
+                                translationY = if (dragging) dragOffsetY else 0f
+                                scaleX = elevation
+                                scaleY = elevation
+                            }
                             .animateItem(
                                 fadeInSpec = tween(250),
                                 fadeOutSpec = tween(250),
@@ -176,6 +218,69 @@ fun ChildrenScreen(
                                     )
                                 }
                             }
+                            // 拖拽手柄：长按拖动换位，松手落库
+                            Icon(
+                                Icons.Default.Menu,
+                                contentDescription = "拖拽排序",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier
+                                    .pointerInput(child.id) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                dragOrder = displayChildren.toList()
+                                                draggingId = child.id
+                                                dragOffsetY = 0f
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                dragOffsetY += dragAmount.y
+                                                val order = dragOrder ?: return@detectDragGesturesAfterLongPress
+                                                val fromIndex = order.indexOfFirst { it.id == draggingId }
+                                                if (fromIndex < 0) return@detectDragGesturesAfterLongPress
+                                                val info = listState.layoutInfo.visibleItemsInfo
+                                                    .firstOrNull { it.key == draggingId }
+                                                    ?: return@detectDragGesturesAfterLongPress
+                                                val centerY = info.offset + dragOffsetY + info.size / 2f
+                                                // 拖动中心越过相邻项中心即换位
+                                                val target = listState.layoutInfo.visibleItemsInfo
+                                                    .firstOrNull { other ->
+                                                        val otherIndex =
+                                                            order.indexOfFirst { it.id == other.key }
+                                                        when {
+                                                            otherIndex > fromIndex ->
+                                                                centerY > other.offset + other.size / 2f
+                                                            otherIndex in 0 until fromIndex ->
+                                                                centerY < other.offset + other.size / 2f
+                                                            else -> false
+                                                        }
+                                                    } ?: return@detectDragGesturesAfterLongPress
+                                                val toIndex = order.indexOfFirst { it.id == target.key }
+                                                dragOffsetY -= if (toIndex > fromIndex) {
+                                                    target.size + spacingPx
+                                                } else {
+                                                    -(target.size + spacingPx)
+                                                }
+                                                dragOrder = order.toMutableList().apply {
+                                                    add(toIndex, removeAt(fromIndex))
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                dragOrder?.let { list ->
+                                                    vm.reorder(list.map { it.id })
+                                                }
+                                                dragOrder = null
+                                                draggingId = null
+                                                dragOffsetY = 0f
+                                            },
+                                            onDragCancel = {
+                                                dragOrder = null
+                                                draggingId = null
+                                                dragOffsetY = 0f
+                                            },
+                                        )
+                                    }
+                                    .padding(4.dp),
+                            )
                         }
                     }
                 }

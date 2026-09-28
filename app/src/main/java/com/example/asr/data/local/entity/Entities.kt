@@ -60,6 +60,8 @@ data class ChildEntity(
     val grade: String? = null,
     /** 孩子专属辅导音色（MiniMax 预置音色值或复刻 voiceId）；null = 跟随全局默认 */
     val voiceId: String? = null,
+    /** 孩子管理页拖拽排序序号（越小越靠前）；积分 tab 等页面按此顺序展示 */
+    val sortOrder: Int = 0,
 )
 
 @Entity(

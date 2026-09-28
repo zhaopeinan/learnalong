@@ -37,11 +37,24 @@ interface ChildDao {
     @Delete
     suspend fun delete(child: ChildEntity)
 
-    @Query("SELECT * FROM children ORDER BY id ASC")
+    @Query("SELECT * FROM children ORDER BY sortOrder ASC, id ASC")
     fun observeAll(): Flow<List<ChildEntity>>
 
     @Query("SELECT * FROM children WHERE id = :id")
     suspend fun getById(id: Long): ChildEntity?
+
+    /** 新孩子排到末尾 */
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM children")
+    suspend fun nextSortOrder(): Int
+
+    @Query("UPDATE children SET sortOrder = :order WHERE id = :id")
+    suspend fun updateSortOrder(id: Long, order: Int)
+
+    /** 拖拽排序落库：按列表顺序重写全部孩子的 sortOrder（事务） */
+    @androidx.room.Transaction
+    suspend fun updateSortOrders(orderedIds: List<Long>) {
+        orderedIds.forEachIndexed { index, id -> updateSortOrder(id, index) }
+    }
 
     /** 云备份/恢复用：全量读取 / 云端覆盖本地同 id 数据 */
     @Query("SELECT * FROM children")
