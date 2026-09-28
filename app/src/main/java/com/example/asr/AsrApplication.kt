@@ -73,8 +73,11 @@ class AppContainer(context: Application) {
     /** 超过 3 天未备份时置 true，AppRoot 弹提醒 */
     val backupReminder = MutableStateFlow(false)
 
-    /** 其他 App（如小米录音机）分享过来的音频文件，等待用户在记录页确认归属 */
+    /** 底部动作面板「导入音频」产出的音频文件，等待用户在记录页确认归属（孩子/科目） */
     val pendingImport = MutableStateFlow<File?>(null)
+
+    /** 其他 App（如小米录音机）分享过来的音频文件，AppRoot 先弹类目选择器再分流 */
+    val pendingShareImport = MutableStateFlow<File?>(null)
 
     /** 底部动作面板拍照/相册产出的错题照片（已复制进私有目录），等待用户在记录页确认归属 */
     val pendingPhotoImport = MutableStateFlow<List<File>?>(null)

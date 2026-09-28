@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 接收其他 App（如小米录音机）分享来的音频，复制后等用户在记录页确认 */
+    /** 接收其他 App（如小米录音机）分享来的音频，复制后由 AppRoot 弹类目选择器分流 */
     private fun handleSharedAudio(intent: Intent?) {
         if (intent?.action != Intent.ACTION_SEND) return
         val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val file = AudioImporter.import(this@MainActivity, uri)
-                app.container.pendingImport.value = file
+                app.container.pendingShareImport.value = file
             } catch (_: Exception) {
                 // 复制失败则忽略，不阻塞启动
             }

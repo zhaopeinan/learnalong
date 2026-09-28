@@ -85,6 +85,7 @@ import com.example.asr.AsrApplication
 import com.example.asr.R
 import com.example.asr.audio.AudioImporter
 import com.example.asr.data.local.entity.ChatMode
+import com.example.asr.data.local.entity.WorkScenario
 import com.example.asr.data.settings.AppSettings
 import com.example.asr.ui.about.AboutScreen
 import com.example.asr.ui.agreement.AgreementScreen
@@ -253,6 +254,44 @@ fun AppRoot() {
                 launchSingleTop = true
             }
         }
+    }
+
+    // 外部分享音频（如系统录音机分享到伴学记）：先弹类目选择器再分流
+    val pendingShare by app.container.pendingShareImport.collectAsStateWithLifecycle()
+    pendingShare?.let { file ->
+        ShareTargetSheet(
+            fileName = file.name,
+            onChild = {
+                app.container.pendingShareImport.value = null
+                // 复用记录页「确认归属」弹窗：选孩子与科目
+                app.container.pendingImport.value = file
+                navigateTopLevel(Routes.RECORDINGS)
+            },
+            onWork = { scenario ->
+                scope.launch(Dispatchers.IO) {
+                    try {
+                        val id = app.container.workRepository.saveRecording(
+                            scenario = scenario,
+                            file = file,
+                            durationSec = AudioImporter.probeDurationSec(file),
+                        )
+                        withContext(Dispatchers.Main) {
+                            app.container.pendingShareImport.value = null
+                            navController.navigate(Routes.workDetail(id, auto = true))
+                        }
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            app.container.pendingShareImport.value = null
+                            snackbarHostState.showSnackbar("导入失败：${e.message}")
+                        }
+                    }
+                }
+            },
+            onDismiss = {
+                file.delete() // 取消导入时删除已复制的临时文件
+                app.container.pendingShareImport.value = null
+            },
+        )
     }
 
     // 新手引导：路由变化时通知控制器（首次进「复习」自动开始；引导中跟随跳转）
@@ -922,6 +961,95 @@ private fun CenterMicButton(
 }
 
 private enum class PanelAction { CHAT, RECORD, CAMERA, ALBUM, AUDIO }
+
+private data class ShareTarget(
+    val emoji: String,
+    val title: String,
+    val desc: String,
+    val badgeColor: Color,
+    /** 工作端场景；null = 家长端辅导记录 */
+    val workScenario: String?,
+)
+
+// 外部分享音频的类目选项（顺序与文案按用户需求：会议 / 通话 / 孩子）
+private val shareTargets = listOf(
+    ShareTarget("🏢", "工作端 · 会议", "会议纪要 + 待办提取", Color(0xFFD3E7DA), WorkScenario.MEETING),
+    ShareTarget("📞", "聊天通话", "关键信息 + 待办约定", Color(0xFFF8E3B8), WorkScenario.CALL),
+    ShareTarget("🧒", "跟孩子的对话", "辅导记录：转写 + 薄弱点分析", Color(0xFFE9E2F7), null),
+)
+
+/** 外部分享音频的类目选择底部弹层：选定后分流到工作端场景或家长端辅导记录 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ShareTargetSheet(
+    fileName: String,
+    onChild: () -> Unit,
+    onWork: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+    ) {
+        Text(
+            "这段录音导入到哪里？",
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            fileName,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        shareTargets.forEach { item ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
+                        if (item.workScenario == null) onChild() else onWork(item.workScenario)
+                    }
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(item.badgeColor),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(item.emoji, fontSize = 20.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        item.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        item.desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
 
 private data class PanelActionItem(
     val action: PanelAction,
