@@ -204,6 +204,11 @@ fun AppRoot() {
     val atTopLevel = currentRoute in topLevelDestinations.map { it.route } ||
         currentRoute == Routes.KID_PROGRESS || currentRoute == Routes.WORK_HOME
     BackHandler(enabled = atTopLevel) {
+        // 工作端首页：返回 = 退出工作端回家长端「我的」（对齐页面左上角 ←），而不是退出 App
+        if (currentRoute == Routes.WORK_HOME) {
+            exitWorkToParent()
+            return@BackHandler
+        }
         val now = System.currentTimeMillis()
         if (now - lastExitPromptAt < 2000L) {
             (context as? Activity)?.moveTaskToBack(true)
