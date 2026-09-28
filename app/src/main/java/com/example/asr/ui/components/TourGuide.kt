@@ -76,19 +76,19 @@ object TourPlan {
 
     val STEPS = listOf(
         TourStep(
-            route = Routes.TODAY,
+            route = Routes.REVIEW,
             targetTag = null,
             title = "欢迎来到伴学记",
             desc = "录下你辅导孩子的过程，AI 自动分离人声、转写内容、找出孩子的薄弱点，并按艾宾浩斯曲线安排复习。花 1 分钟，带你完整走一遍。",
         ),
         TourStep(
-            route = Routes.TODAY,
+            route = Routes.REVIEW,
             targetTag = TAG_TODAY_CARD,
             title = "今日复习",
-            desc = "每天打开「今日」，这里会按艾宾浩斯记忆曲线列出今天该复习的薄弱点，点开就能直接带孩子练。",
+            desc = "每天打开「复习」，这里会按艾宾浩斯记忆曲线列出今天该复习的薄弱点，点开就能直接带孩子练。",
         ),
         TourStep(
-            route = Routes.TODAY,
+            route = Routes.REVIEW,
             targetTag = TAG_TABBAR_CENTER,
             title = "录下辅导过程",
             desc = "点底部中央的绿色麦克风，录下你给孩子讲题的过程。也可以点「下一步」，跟着引导进录音页看看。",
@@ -106,23 +106,23 @@ object TourPlan {
             desc = "录音都保存在「记录」里。点进一条记录：转写文稿、拍错题照片，并让 AI 分析出孩子的薄弱点。",
         ),
         TourStep(
-            route = Routes.WEAK_POINTS,
+            route = Routes.REVIEW,
             targetTag = TAG_WP_CARD,
             title = "薄弱点自动汇总",
-            desc = "分析出的薄弱知识点会汇总到这里，掌握度一目了然，并自动生成「今日」里的复习任务。",
+            desc = "分析出的薄弱知识点会汇总到「复习」页下方，掌握度一目了然，并自动生成今日复习任务。",
         ),
         TourStep(
             route = Routes.MINE,
             targetTag = TAG_MENU_GUIDE,
             title = "随时可以重看",
-            desc = "忘记用法时，来「我的 → 使用指南」查看图文教程，也可以重新体验本引导。刚才看到的「示例·小明」是演示数据，不需要可以在薄弱点页删除。去录下第一次真实的辅导吧！",
+            desc = "忘记用法时，来「我的 → 使用指南」查看图文教程，也可以重新体验本引导。刚才看到的「示例·小明」是演示数据，不需要可以在「复习」页删除。去录下第一次真实的辅导吧！",
         ),
     )
 }
 
 /**
  * 新手引导控制器（对应小程序 tour.ts + components/tour-guide）：
- * 首次进「今日」自动开始；步骤跟随路由；高亮目标由各页面通过 tourTarget(tag) 上报。
+ * 首次进「复习」自动开始；步骤跟随路由；高亮目标由各页面通过 tourTarget(tag) 上报。
  */
 class TourController(
     private val settingsStore: SettingsStore,
@@ -149,12 +149,12 @@ class TourController(
         }
     }
 
-    /** 页面进入时调用：未看过引导则自动开始（今日页）；引导中自动跟进用户跳转 */
+    /** 页面进入时调用：未看过引导则自动开始（复习页）；引导中自动跟进用户跳转 */
     fun onRouteShown(route: String?) {
         route ?: return
         if (!finishedLoaded) return
         if (!active) {
-            if (!finished && route == Routes.TODAY) {
+            if (!finished && route == Routes.REVIEW) {
                 active = true
                 index = 0
             }

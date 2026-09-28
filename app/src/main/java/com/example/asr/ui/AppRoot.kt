@@ -111,10 +111,10 @@ import com.example.asr.ui.settings.SettingsMenuScreen
 import com.example.asr.ui.settings.SettingsViewModel
 import com.example.asr.ui.settings.StudySettingsScreen
 import com.example.asr.ui.settings.VoiceSettingsScreen
+import com.example.asr.ui.points.PointsTabScreen
+import com.example.asr.ui.review.ReviewScreen
 import com.example.asr.ui.splash.SplashScreen
-import com.example.asr.ui.today.TodayScreen
 import com.example.asr.ui.weakpoints.WeakPointExerciseScreen
-import com.example.asr.ui.weakpoints.WeakPointsScreen
 import com.example.asr.ui.work.WorkDetailScreen
 import com.example.asr.ui.work.WorkHomeScreen
 import com.example.asr.ui.work.WorkHomeViewModel
@@ -130,11 +130,12 @@ private data class TopLevelDestination(
     @DrawableRes val activeIconRes: Int,
 )
 
-// 图标与微信小程序 custom-tab-bar 一致（dark 变体在 drawable-night 自动切换）
+// 复习/记录/我的图标与微信小程序 custom-tab-bar 一致（dark 变体在 drawable-night 自动切换）；
+// 积分图标为同风格自绘星星（原「今日」「薄弱点」合并为「复习」后腾出位置）
 private val topLevelDestinations = listOf(
-    TopLevelDestination(Routes.TODAY, "今日", R.drawable.today_normal, R.drawable.today_active),
+    TopLevelDestination(Routes.REVIEW, "复习", R.drawable.weakpoints_normal, R.drawable.weakpoints_active),
     TopLevelDestination(Routes.RECORDINGS, "记录", R.drawable.records_normal, R.drawable.records_active),
-    TopLevelDestination(Routes.WEAK_POINTS, "薄弱点", R.drawable.weakpoints_normal, R.drawable.weakpoints_active),
+    TopLevelDestination(Routes.POINTS_HOME, "积分", R.drawable.points_normal, R.drawable.points_active),
     TopLevelDestination(Routes.MINE, "我的", R.drawable.mine_normal, R.drawable.mine_active),
 )
 
@@ -167,9 +168,9 @@ fun AppRoot() {
         initializer { WorkHomeViewModel(app.container.workRepository) }
     })
 
-    /** 退出孩子端（家长锁验证通过）：回家长端今日页并清空回退栈 */
+    /** 退出孩子端（家长锁验证通过）：回家长端复习页并清空回退栈 */
     fun exitKidToParent() {
-        navController.navigate(Routes.TODAY) {
+        navController.navigate(Routes.REVIEW) {
             popUpTo(0) { inclusive = true }
         }
     }
@@ -253,7 +254,7 @@ fun AppRoot() {
         }
     }
 
-    // 新手引导：路由变化时通知控制器（首次进「今日」自动开始；引导中跟随跳转）
+    // 新手引导：路由变化时通知控制器（首次进「复习」自动开始；引导中跟随跳转）
     LaunchedEffect(currentRoute) {
         app.container.tourController.onRouteShown(currentRoute)
     }
@@ -327,25 +328,25 @@ fun AppRoot() {
                     gate = gate,
                     initialType = entry.arguments?.getString("type") ?: "terms",
                     onAgree = {
-                        navController.navigate(Routes.TODAY) {
+                        navController.navigate(Routes.REVIEW) {
                             popUpTo(0) { inclusive = true }
                         }
                     },
                     onBack = { navController.popBackStack() },
                 )
             }
-            composable(Routes.TODAY) { TodayScreen() }
+            composable(Routes.REVIEW) {
+                ReviewScreen(
+                    onOpenExercise = { id -> navController.navigate(Routes.exercise(id)) },
+                )
+            }
             composable(Routes.RECORDINGS) {
                 RecordingsScreen(
                     onOpenDetail = { id -> navController.navigate(Routes.detail(id)) },
                     onRecord = { navController.navigate(Routes.RECORD) },
                 )
             }
-            composable(Routes.WEAK_POINTS) {
-                WeakPointsScreen(
-                    onOpenExercise = { id -> navController.navigate(Routes.exercise(id)) },
-                )
-            }
+            composable(Routes.POINTS_HOME) { PointsTabScreen() }
             composable(Routes.MINE) {
                 MineScreen(
                     onOpenChildren = { navController.navigate(Routes.CHILDREN) },
@@ -507,7 +508,7 @@ fun AppRoot() {
                         scope.launch {
                             app.container.demoSeeder.seedIfEmpty()
                             app.container.tourController.restart()
-                            navController.navigate(Routes.TODAY) {
+                            navController.navigate(Routes.REVIEW) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
                                 }

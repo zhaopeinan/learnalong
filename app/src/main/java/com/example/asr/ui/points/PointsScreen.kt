@@ -66,11 +66,26 @@ import com.example.asr.ui.util.toMinuteString
 /**
  * 积分乐园（家长端，按孩子）：战报 + 多目标兑换 + 加分任务 + 积分流水。
  * 目标可多个并存，家长任选已达成的一个兑换；加分/兑换瞬间播放庆祝动效与合成音效。
+ * PointsScreen = 带返回顶栏的独立页（孩子管理入口）；PointsView 供积分 tab 复用。
  */
 @Composable
 fun PointsScreen(
     childId: Long,
     onBack: () -> Unit,
+) {
+    PointsView(
+        childId = childId,
+        topBar = { childName -> AppBackTopBar("${childName}的积分乐园", onBack = onBack) },
+    )
+}
+
+/**
+ * 积分乐园内容（不含页面级顶栏）：topBar 由调用方提供，参数为当前孩子名。
+ */
+@Composable
+fun PointsView(
+    childId: Long,
+    topBar: @Composable (String) -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as AsrApplication
     val vm: PointsViewModel = viewModel(key = "points_$childId", factory = viewModelFactory {
@@ -115,7 +130,7 @@ fun PointsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            topBar = { AppBackTopBar("${child?.name ?: ""}的积分乐园", onBack = onBack) },
+            topBar = { topBar(child?.name ?: "") },
             snackbarHost = { SnackbarHost(snackbarHostState) },
         ) { padding ->
             LazyColumn(

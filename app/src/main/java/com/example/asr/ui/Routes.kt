@@ -6,9 +6,8 @@ object Routes {
     const val SPLASH = "splash"
     /** 协议页：gate=true 为强制确认门；type=terms|privacy 为初始文档 */
     const val AGREEMENT = "agreement?gate={gate}&type={type}"
-    const val TODAY = "today"
+    const val REVIEW = "review"
     const val RECORDINGS = "recordings"
-    const val WEAK_POINTS = "weak_points"
     const val MINE = "mine"
     const val RECORD = "record"
     /** 问老师（AI 语音辅导）：mode=free|weakpoint|exercise，childId 缺省在页内解析，refId=weakPointId */
@@ -30,6 +29,8 @@ object Routes {
     const val KID_PROGRESS = "kid_progress"
     /** 积分乐园（家长端，按孩子） */
     const val POINTS = "points/{childId}"
+    /** 积分 tab：顶部切换孩子的积分乐园一级页 */
+    const val POINTS_HOME = "points_home"
     /** 工作端首页（记录列表 / 待办清单两视图，页内切换） */
     const val WORK_HOME = "work_home"
     const val WORK_RECORD = "work_record"

@@ -45,7 +45,7 @@ fun SplashScreen(onNavigate: (String) -> Unit) {
             settings.appMode == AppSettings.MODE_KID && settings.kidChildId != null -> Routes.KID_PROGRESS
             settings.appMode == AppSettings.MODE_WORK -> Routes.WORK_HOME
             app.container.pendingImport.value != null -> Routes.RECORDINGS
-            else -> Routes.TODAY
+            else -> Routes.REVIEW
         }
         onNavigate(route)
     }

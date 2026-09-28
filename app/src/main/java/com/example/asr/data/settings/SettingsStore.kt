@@ -41,6 +41,7 @@ data class AppSettings(
     val agreementAgreedV1: Boolean = false, // 已同意用户协议与隐私政策（协议闸门）
     val appMode: String = MODE_PARENT,    // 家长端 / 孩子端 / 工作端
     val kidChildId: Long? = null,         // 孩子端绑定的孩子 id
+    val pointsChildId: Long? = null,      // 积分 tab 上次选中的孩子 id
     val parentPin: String = "",           // 家长密码（4-6 位数字 PIN），空串 = 未设置
     val minimaxApiKey: String = "",       // MiniMax API Key（语音合成 + 家长声音复刻）
     val minimaxModel: String = DEFAULT_MINIMAX_MODEL,
@@ -107,6 +108,7 @@ class SettingsStore(private val context: Context) {
         val AGREEMENT_AGREED_V1 = booleanPreferencesKey("agreement_agreed_v1")
         val APP_MODE = stringPreferencesKey("app_mode")
         val KID_CHILD_ID = longPreferencesKey("kid_child_id")
+        val POINTS_CHILD_ID = longPreferencesKey("points_child_id")
         val PARENT_PIN = stringPreferencesKey("parent_pin")
         val MINIMAX_API_KEY = stringPreferencesKey("minimax_api_key")
         val MINIMAX_MODEL = stringPreferencesKey("minimax_model")
@@ -157,6 +159,7 @@ class SettingsStore(private val context: Context) {
                 it in listOf(AppSettings.MODE_PARENT, AppSettings.MODE_KID, AppSettings.MODE_WORK)
             } ?: AppSettings.MODE_PARENT,
             kidChildId = prefs[Keys.KID_CHILD_ID]?.takeIf { it > 0 },
+            pointsChildId = prefs[Keys.POINTS_CHILD_ID]?.takeIf { it > 0 },
             parentPin = (prefs[Keys.PARENT_PIN] ?: "").replace(WHITESPACE, ""),
             minimaxApiKey = (prefs[Keys.MINIMAX_API_KEY] ?: "").replace(WHITESPACE, ""),
             minimaxModel = prefs[Keys.MINIMAX_MODEL] ?: AppSettings.DEFAULT_MINIMAX_MODEL,
@@ -242,6 +245,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setKidChildId(value: Long?) = context.dataStore.edit {
         if (value == null) it.remove(Keys.KID_CHILD_ID) else it[Keys.KID_CHILD_ID] = value
+    }
+
+    suspend fun setPointsChildId(value: Long?) = context.dataStore.edit {
+        if (value == null) it.remove(Keys.POINTS_CHILD_ID) else it[Keys.POINTS_CHILD_ID] = value
     }
 
     suspend fun setParentPin(value: String) = context.dataStore.edit {

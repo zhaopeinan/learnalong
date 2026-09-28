@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.first
  * 演示数据播种（对应小程序 tour.ts 的 seedDemoDataIfEmpty）：
  * 若库还是空的（全新安装），放入一套示例孩子/薄弱点/今日任务/练习题，
  * 让新手引导和新用户第一眼就能看到真实数据长什么样。只执行一次。
- * 触发时机对齐小程序：今日页首进（onShow）时调用。
+ * 触发时机对齐小程序：复习页首进（onShow）时调用。
  */
 class DemoSeeder(
     private val childDao: ChildDao,
