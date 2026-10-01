@@ -54,17 +54,17 @@
 
 ## 📱 界面预览 · Screenshots
 
-> 以下为**真实运行截图**（早期构建，核心流程至今未变）。
+> 以下为**真实运行截图**（早期构建，核心流程至今未变）。截图中的孩子「小宇」与辅导内容均为模拟器上的**演示数据**，非真实用户数据。
 
 <div align="center">
 
-| 录音准备 | 录音中 | 转写详情 |
+| 录音准备 | 录音中 | 记录详情 · 分角色转写 |
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/record-setup.png" width="210" /> | <img src="docs/screenshots/recording-live.png" width="210" /> | <img src="docs/screenshots/recording-detail.png" width="210" /> |
 
-| 薄弱点分析 | 孩子管理 | 我的 |
+| 薄弱点库 | 孩子管理 | 我的 |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/weakpoint-expanded.png" width="210" /> | <img src="docs/screenshots/children.png" width="210" /> | <img src="docs/screenshots/mine.png" width="210" /> |
+| <img src="docs/screenshots/weakpoint-library.png" width="210" /> | <img src="docs/screenshots/children.png" width="210" /> | <img src="docs/screenshots/mine.png" width="210" /> |
 
 </div>
 
