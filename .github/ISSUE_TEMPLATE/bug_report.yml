@@ -1,0 +1,82 @@
+name: 🐞 Bug 报告 / Bug report
+description: 报告一个可复现的问题 / Report a reproducible problem
+labels: [ "bug" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量填写完整，信息越全越容易定位。
+        Thanks for the report — the more detail, the faster we can fix it.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 问题描述 / What happened
+      description: 发生了什么？你期望发生什么？
+      placeholder: |
+        实际：点「开始转写」后一直转圈，10 分钟没有结果。
+        期望：应该在 1 分钟内完成并展示逐字稿。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      placeholder: |
+        1. 进入 记录 → 选择一条含 60 分钟音频的记录
+        2. 点「开始转写」
+        3. 观察进度条
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统 / Device & OS
+      placeholder: "Xiaomi 14 / Android 15 (HyperOS 2)"
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: 应用版本 / App version
+      description: 见「我的 → 关于」页
+      placeholder: "1.0.14"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: 出问题的模式 / Which mode
+      options:
+        - 家长端 Parent
+        - 孩子端 Kid
+        - 工作端 Work
+        - 设置 / 备份 Settings & Backup
+        - 不确定 Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / Logs
+      description: |
+        如果服务商请求失败，可在「我的 → 设置 → 通用 → 调试模式」开启后复现，
+        再从调试日志页复制最近 10 条失败请求。**请先删除其中包含 API Key 的内容。**
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认 / Checklist
+      options:
+        - label: 我已经搜索过现有 Issues，没有重复
+          required: true
+        - label: 我已确认粘贴的日志中没有包含 API Key 或隐私内容
+          required: true

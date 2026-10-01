@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 先看文档 Documentation
+    url: https://github.com/zhaopeinan/learnalong#readme
+    about: 快速开始、配置说明、已知限制都写在 README 里。
+  - name: 🔐 安全或隐私问题 Security / privacy
+    url: https://github.com/zhaopeinan/learnalong/security
+    about: 请通过私密渠道报告，不要开公开 Issue。

@@ -20,10 +20,9 @@ local.properties
 .shotcraft/
 .superpowers/
 
-# 小程序
-miniprogram/node_modules/
-miniprogram/miniprogram_npm/
-
 # 预览二维码等临时产物
 preview-qr*.png
-miniprogram/.tmp/
+
+# 本地生成物（AI 出图、临时脚本等）
+/generated/
+/tmp/

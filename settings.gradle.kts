@@ -27,5 +27,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ASR"
+rootProject.name = "LearnAlong"
 include(":app")
